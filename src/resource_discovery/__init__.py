@@ -4,6 +4,7 @@ __all__ = [
     "models",
     "query_planner",
     "source_client",
+    "fofa_client",
     "normalizer",
     "deduplicator",
     "risk_hints",
