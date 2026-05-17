@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 from typing import Protocol
 
+from .fofa_client import FofaApiClient
 from .models import SourceQueryPlan
 
 
@@ -25,3 +26,36 @@ class FixtureSourceClient:
             if not matched_query_types or plan.query_type in matched_query_types:
                 matched_rows.append(dict(row))
         return matched_rows[: plan.result_limit]
+
+
+class FofaSourceClient:
+    DEFAULT_FIELDS = [
+        "host",
+        "ip",
+        "port",
+        "protocol",
+        "service",
+        "title",
+        "product",
+        "url",
+    ]
+
+    def __init__(self, api_client: FofaApiClient, fields: list[str] | None = None) -> None:
+        self.api_client = api_client
+        self.fields = fields or self.DEFAULT_FIELDS
+
+    def fetch(self, plan: SourceQueryPlan) -> list[dict]:
+        rows: list[dict] = []
+        for page in range(1, plan.page_limit + 1):
+            page_rows = self.api_client.search(
+                plan.source_query,
+                fields=self.fields,
+                page=page,
+                size=min(plan.result_limit, 100),
+            )
+            if not page_rows:
+                break
+            rows.extend(page_rows)
+            if len(rows) >= plan.result_limit:
+                break
+        return rows[: plan.result_limit]

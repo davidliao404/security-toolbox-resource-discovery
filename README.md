@@ -36,6 +36,20 @@ python -m venv .venv
 .\.venv\Scripts\python.exe -m resource_discovery.cli --seeds examples\seeds.json --fixture tests\fixtures\fofa_results.json
 ```
 
+只查看将要执行的受控查询计划，不调用任何外部 API：
+
+```powershell
+.\.venv\Scripts\python.exe -m resource_discovery.cli --mode dry-run --seeds examples\seeds.json
+```
+
+真实 FOFA 调用被默认禁用。后续需要真实调用时，必须同时提供凭据和显式开关：
+
+```powershell
+.\.venv\Scripts\python.exe -m resource_discovery.cli --mode live --seeds examples\seeds.json --fofa-email <email> --fofa-key <key> --allow-live-fofa
+```
+
+不要对未授权目标运行 live mode。
+
 命令会向 stdout 输出 JSON，其中包含：
 
 - `report`
@@ -56,3 +70,4 @@ python -m venv .venv
 - 单次任务默认最多 30 个查询页。
 - 单个查询计划默认最多 1000 条结果。
 - FOFA API 客户端在缺少 email 或 key 时会直接拒绝构造，不会尝试联网。
+- `live` 模式必须显式传入 `--allow-live-fofa`，否则会在执行前停止。
