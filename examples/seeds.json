@@ -1,0 +1,28 @@
+{
+  "task_id": "dt_poc_001",
+  "tenant_id": "tenant_poc",
+  "operator_id": "user_poc",
+  "region": "hk",
+  "purpose": "poc_exposure_review",
+  "language": "zh-CN",
+  "seeds": [
+    {
+      "seed_id": "seed_001",
+      "type": "root_domain",
+      "value": "example.org",
+      "authorization_note": "PoC authorized test domain"
+    },
+    {
+      "seed_id": "seed_002",
+      "type": "organization_name",
+      "value": "Example Organization",
+      "authorization_note": "PoC authorized organization name"
+    },
+    {
+      "seed_id": "seed_003",
+      "type": "ip_cidr",
+      "value": "203.0.113.0/24",
+      "authorization_note": "Documentation IP range for structure validation"
+    }
+  ]
+}

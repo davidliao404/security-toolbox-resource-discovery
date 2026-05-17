@@ -1,0 +1,72 @@
+{
+  "results": [
+    {
+      "matched_query_types": ["domain", "organization"],
+      "ip": "203.0.113.10",
+      "host": "vpn.example.org",
+      "root_domain": "example.org",
+      "port": 443,
+      "protocol": "https",
+      "service": "vpn",
+      "title": "Example VPN Portal",
+      "product": "ExampleVPN",
+      "version": "unknown",
+      "url": "https://vpn.example.org/",
+      "country_or_region": "HK",
+      "confidence": 0.86,
+      "first_seen": "2026-05-17T10:03:00+08:00",
+      "last_seen": "2026-05-17T10:03:00+08:00",
+      "tls": {
+        "enabled": true,
+        "certificate_fingerprint": "sha256:vpn"
+      }
+    },
+    {
+      "matched_query_types": ["domain"],
+      "ip": "203.0.113.20",
+      "host": "admin.example.org",
+      "root_domain": "example.org",
+      "port": 8443,
+      "protocol": "https",
+      "service": "admin",
+      "title": "Admin Console",
+      "product": "ExampleAdmin",
+      "url": "https://admin.example.org/",
+      "country_or_region": "HK",
+      "confidence": 0.83,
+      "first_seen": "2026-05-17T10:04:00+08:00",
+      "last_seen": "2026-05-17T10:04:00+08:00"
+    },
+    {
+      "matched_query_types": ["domain"],
+      "ip": "203.0.113.30",
+      "host": "staging.example.org",
+      "root_domain": "example.org",
+      "port": 8080,
+      "protocol": "http",
+      "service": "tomcat",
+      "title": "Staging Tomcat",
+      "product": "Tomcat",
+      "url": "http://staging.example.org:8080/",
+      "country_or_region": "HK",
+      "confidence": 0.72,
+      "first_seen": "2026-05-17T10:05:00+08:00",
+      "last_seen": "2026-05-17T10:05:00+08:00"
+    },
+    {
+      "matched_query_types": ["ip_range"],
+      "ip": "203.0.113.40",
+      "host": "db.example.org",
+      "root_domain": "example.org",
+      "port": 3306,
+      "protocol": "mysql",
+      "service": "mysql",
+      "title": "MySQL",
+      "product": "MySQL",
+      "country_or_region": "HK",
+      "confidence": 0.68,
+      "first_seen": "2026-05-17T10:06:00+08:00",
+      "last_seen": "2026-05-17T10:06:00+08:00"
+    }
+  ]
+}
