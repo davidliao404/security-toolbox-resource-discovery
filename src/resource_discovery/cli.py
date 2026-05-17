@@ -10,6 +10,7 @@ from .normalizer import normalize_fofa_results
 from .query_planner import plan_fofa_queries
 from .report_builder import build_exposure_report
 from .risk_hints import generate_risk_hints
+from .safety import enforce_plan_quota, validate_seeds
 from .source_client import FixtureSourceClient
 
 
@@ -18,7 +19,9 @@ def run_fixture_demo(seeds_path: str | Path, fixture_path: str | Path) -> dict:
     task_id = payload.get("task_id", "dt_poc_001")
     tenant_id = payload.get("tenant_id", "tenant_poc")
     seeds = [DiscoverySeed(**seed) for seed in payload["seeds"]]
+    validate_seeds(seeds)
     plans = plan_fofa_queries(task_id, seeds)
+    enforce_plan_quota(plans)
     client = FixtureSourceClient(fixture_path)
 
     assets = []

@@ -37,6 +37,11 @@ def test_builds_search_url_with_qbase64_and_fields():
     assert query["size"] == ["50"]
 
 
+def test_rejects_missing_credentials_before_any_network_use():
+    with pytest.raises(ValueError, match="email and key"):
+        FofaApiClient(email="", key="")
+
+
 def test_fetch_search_maps_results_to_field_names():
     captured_urls = []
 

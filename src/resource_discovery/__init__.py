@@ -5,6 +5,7 @@ __all__ = [
     "query_planner",
     "source_client",
     "fofa_client",
+    "safety",
     "normalizer",
     "deduplicator",
     "risk_hints",

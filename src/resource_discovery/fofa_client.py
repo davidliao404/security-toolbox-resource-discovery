@@ -20,6 +20,8 @@ class FofaApiClient:
         opener: Callable | None = None,
         timeout: int = 30,
     ) -> None:
+        if not email.strip() or not key.strip():
+            raise ValueError("FOFA email and key are required")
         self.email = email
         self.key = key
         self.base_url = base_url
