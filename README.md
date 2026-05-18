@@ -63,6 +63,24 @@ python -m venv .venv
 
 当某个供应商查询失败但其他查询成功时，执行结果会降级为 `partial_success`，保留已获取结果并在 `task.errors` 中记录失败来源、查询类型和错误信息。
 
+保存任务快照：
+
+```powershell
+.\.venv\Scripts\python.exe -m resource_discovery.cli --seeds examples\seeds.json --fixture tests\fixtures\fofa_results.json --save-dir .\artifacts\snapshots
+```
+
+列出某个租户的快照摘要：
+
+```powershell
+.\.venv\Scripts\python.exe -m resource_discovery.cli --seeds examples\seeds.json --list-snapshots --tenant-id tenant_poc --save-dir .\artifacts\snapshots
+```
+
+读取某个任务快照：
+
+```powershell
+.\.venv\Scripts\python.exe -m resource_discovery.cli --seeds examples\seeds.json --show-snapshot dt_poc_001 --tenant-id tenant_poc --save-dir .\artifacts\snapshots
+```
+
 ## 安全边界
 
 当前 PoC 只使用 fixture 数据，不调用真实 FOFA API，不保存 SaaS 密钥，不执行端口扫描、漏洞验证、弱口令验证或渗透测试。所有风险项均为被动发现线索，需要在客户私有化安全工具箱内进行本地验证。
@@ -76,3 +94,4 @@ python -m venv .venv
 - 单个查询计划默认最多 1000 条结果。
 - FOFA API 客户端在缺少 email 或 key 时会直接拒绝构造，不会尝试联网。
 - `live` 模式必须显式传入 `--allow-live-fofa`，否则会在执行前停止。
+- 快照存储按 `tenant_id/task_id.json` 写入，并拒绝包含路径穿越字符的不安全标识。

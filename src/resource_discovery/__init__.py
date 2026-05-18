@@ -8,6 +8,7 @@ __all__ = [
     "execution",
     "safety",
     "task_state",
+    "task_store",
     "normalizer",
     "deduplicator",
     "risk_hints",
