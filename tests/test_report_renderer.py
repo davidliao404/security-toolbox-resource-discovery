@@ -17,6 +17,8 @@ def test_render_markdown_report_contains_manager_sections_and_appendix():
     assert "## 管理者摘要" in markdown
     assert "本次被动发现识别到 4 个疑似互联网暴露资产" in markdown
     assert "## 优先处置建议" in markdown
+    assert "## 整改优先级" in markdown
+    assert "建议负责人：IT 管理员" in markdown
     assert "## 技术附录：暴露服务" in markdown
     assert "| vpn.example.org | 203.0.113.10 | 443 | https | vpn |" in markdown
     assert "所有发现均来自被动资产发现数据，需结合本地验证确认。" in markdown

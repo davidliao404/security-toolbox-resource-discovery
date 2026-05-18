@@ -9,6 +9,7 @@ from .models import DiscoverySeed, SourceQueryPlan
 from .normalizer import normalize_fofa_results
 from .query_planner import plan_fofa_queries
 from .report_builder import build_exposure_report
+from .remediation import build_remediation_plan
 from .risk_hints import generate_risk_hints
 from .safety import enforce_plan_quota, validate_seeds
 from .source_client import FixtureSourceClient, FofaSourceClient, SourceClient
@@ -114,6 +115,8 @@ def _execute_with_client(
     deduped_services = deduplicate_services(services)
     risk_hints = generate_risk_hints(task_id, deduped_services)
     report = build_exposure_report(task_id, tenant_id, deduped_assets, deduped_services, risk_hints)
+    risk_hint_dicts = [risk.to_dict() for risk in risk_hints]
+    remediation = build_remediation_plan(risk_hint_dicts)
 
     task = build_task_envelope(
         task_id=task_id,
@@ -131,7 +134,8 @@ def _execute_with_client(
         "report": report.to_dict(),
         "assets": [asset.to_dict() for asset in deduped_assets],
         "services": [service.to_dict() for service in deduped_services],
-        "risk_hints": [risk.to_dict() for risk in risk_hints],
+        "risk_hints": risk_hint_dicts,
+        "remediation": remediation,
         "source_evidence": [evidence.to_dict() for evidence in evidences],
     }
     payload["snapshot"] = build_report_snapshot(payload)

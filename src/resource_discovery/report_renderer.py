@@ -10,6 +10,7 @@ def render_markdown_report(payload: dict[str, Any]) -> str:
     summary = report["executive_summary"]
     services = payload.get("services", [])
     risks = payload.get("risk_hints", [])
+    remediation = payload.get("remediation", {})
 
     lines = [
         "# 互联网暴露面管理者报告",
@@ -36,6 +37,12 @@ def render_markdown_report(payload: dict[str, Any]) -> str:
         lines.append(
             f"- **{risk['severity']}** {risk['title']}：{risk['manager_summary']} "
             f"(置信度 {risk['confidence']})"
+        )
+    lines.extend(["", "## 整改优先级", ""])
+    for action in remediation.get("actions", [])[:10]:
+        lines.append(
+            f"{action['priority']}. [{action['severity']}] {action['target']} - "
+            f"{action['recommended_action']}（建议负责人：{action['owner_hint']}）"
         )
     lines.extend(
         [

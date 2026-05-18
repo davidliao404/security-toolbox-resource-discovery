@@ -15,4 +15,5 @@ __all__ = [
     "risk_hints",
     "report_builder",
     "report_renderer",
+    "remediation",
 ]

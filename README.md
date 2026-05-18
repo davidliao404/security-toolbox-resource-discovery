@@ -13,6 +13,7 @@
 - 提供已单元测试的 FOFA API 适配器边界，用于后续真实凭据接入；默认 CLI 仍只运行离线 fixture。
 - 在执行前校验授权说明、种子数量、IP 段范围和查询页数预算，避免误用真实 SaaS 能力。
 - 输出任务信封，包含 `success`、`partial_success`、`failed` 等状态、错误列表、配额消耗和报告快照。
+- 根据风险线索生成整改优先级，给出建议负责人和本地验证动作。
 
 ## 本地运行
 
@@ -58,6 +59,7 @@ python -m venv .venv
 - `assets`
 - `services`
 - `risk_hints`
+- `remediation`
 - `source_evidence`
 - `snapshot`
 
