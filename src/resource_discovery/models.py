@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
+from enum import Enum
 from typing import Any
 
 
@@ -16,6 +17,15 @@ def _drop_none(value: Any) -> Any:
 class Serializable:
     def to_dict(self) -> dict[str, Any]:
         return _drop_none(asdict(self))
+
+
+class TaskStatus(str, Enum):
+    CREATED = "created"
+    RUNNING = "running"
+    SUCCESS = "success"
+    PARTIAL_SUCCESS = "partial_success"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
 
 
 @dataclass(frozen=True)
@@ -37,6 +47,35 @@ class SourceQueryPlan(Serializable):
     query_type: str
     page_limit: int = 10
     result_limit: int = 1000
+
+
+@dataclass(frozen=True)
+class QuotaUsage(Serializable):
+    planned_queries: int
+    completed_queries: int = 0
+    failed_queries: int = 0
+    planned_pages: int = 0
+    consumed_pages: int = 0
+    result_count: int = 0
+
+
+@dataclass(frozen=True)
+class TaskError(Serializable):
+    source: str
+    query_type: str
+    source_query: str
+    message: str
+    recoverable: bool = True
+
+
+@dataclass(frozen=True)
+class TaskEnvelope(Serializable):
+    task_id: str
+    tenant_id: str
+    mode: str
+    status: TaskStatus
+    quota_usage: QuotaUsage
+    errors: list[TaskError] = field(default_factory=list)
 
 
 @dataclass(frozen=True)

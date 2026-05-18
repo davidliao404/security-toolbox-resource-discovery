@@ -7,6 +7,7 @@ __all__ = [
     "fofa_client",
     "execution",
     "safety",
+    "task_state",
     "normalizer",
     "deduplicator",
     "risk_hints",

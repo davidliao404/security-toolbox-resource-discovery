@@ -12,6 +12,8 @@ from .report_builder import build_exposure_report
 from .risk_hints import generate_risk_hints
 from .safety import enforce_plan_quota, validate_seeds
 from .source_client import FixtureSourceClient, FofaSourceClient, SourceClient
+from .task_state import build_report_snapshot, build_task_envelope
+from .models import TaskError
 
 
 class LiveExecutionDisabled(RuntimeError):
@@ -25,6 +27,7 @@ def run_discovery(
     fofa_email: str | None = None,
     fofa_key: str | None = None,
     allow_live_fofa: bool = False,
+    source_client: SourceClient | None = None,
 ) -> dict:
     payload = json.loads(Path(seeds_path).read_text(encoding="utf-8"))
     task_id = payload.get("task_id", "dt_poc_001")
@@ -44,7 +47,7 @@ def run_discovery(
             task_id=task_id,
             tenant_id=tenant_id,
             plans=plans,
-            client=FixtureSourceClient(fixture_path),
+            client=source_client or FixtureSourceClient(fixture_path),
         )
     if mode == "live":
         if not allow_live_fofa:
@@ -85,8 +88,24 @@ def _execute_with_client(
     assets = []
     services = []
     evidences = []
+    errors: list[TaskError] = []
+    completed_queries = 0
     for plan in plans:
-        batch = normalize_fofa_results(task_id, plan, client.fetch(plan))
+        try:
+            rows = client.fetch(plan)
+        except Exception as exc:
+            errors.append(
+                TaskError(
+                    source=plan.source,
+                    query_type=plan.query_type,
+                    source_query=plan.source_query,
+                    message=str(exc),
+                    recoverable=True,
+                )
+            )
+            continue
+        completed_queries += 1
+        batch = normalize_fofa_results(task_id, plan, rows)
         assets.extend(batch.assets)
         services.extend(batch.services)
         evidences.extend(batch.evidences)
@@ -96,12 +115,24 @@ def _execute_with_client(
     risk_hints = generate_risk_hints(task_id, deduped_services)
     report = build_exposure_report(task_id, tenant_id, deduped_assets, deduped_services, risk_hints)
 
-    return {
+    task = build_task_envelope(
+        task_id=task_id,
+        tenant_id=tenant_id,
+        mode=mode,
+        plans=plans,
+        completed_queries=completed_queries,
+        failed_errors=errors,
+        result_count=len(evidences),
+    )
+    payload = {
         "mode": mode,
         "live_api_enabled": mode == "live",
+        "task": task.to_dict(),
         "report": report.to_dict(),
         "assets": [asset.to_dict() for asset in deduped_assets],
         "services": [service.to_dict() for service in deduped_services],
         "risk_hints": [risk.to_dict() for risk in risk_hints],
         "source_evidence": [evidence.to_dict() for evidence in evidences],
     }
+    payload["snapshot"] = build_report_snapshot(payload)
+    return payload

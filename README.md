@@ -12,6 +12,7 @@
 - 生成管理者摘要报告和技术附录数据。
 - 提供已单元测试的 FOFA API 适配器边界，用于后续真实凭据接入；默认 CLI 仍只运行离线 fixture。
 - 在执行前校验授权说明、种子数量、IP 段范围和查询页数预算，避免误用真实 SaaS 能力。
+- 输出任务信封，包含 `success`、`partial_success`、`failed` 等状态、错误列表、配额消耗和报告快照。
 
 ## 本地运行
 
@@ -52,11 +53,15 @@ python -m venv .venv
 
 命令会向 stdout 输出 JSON，其中包含：
 
+- `task`
 - `report`
 - `assets`
 - `services`
 - `risk_hints`
 - `source_evidence`
+- `snapshot`
+
+当某个供应商查询失败但其他查询成功时，执行结果会降级为 `partial_success`，保留已获取结果并在 `task.errors` 中记录失败来源、查询类型和错误信息。
 
 ## 安全边界
 
