@@ -28,6 +28,8 @@ python -m venv .venv
 
 如果系统没有可用 `python`，可使用 Codex 工作区自带 Python 创建 `.venv`。
 
+仓库已配置 GitHub Actions CI。推送到 `master` 或创建 Pull Request 时，CI 会安装开发依赖并执行完整 pytest 测试。
+
 ## 3. 运行离线 PoC
 
 ```powershell

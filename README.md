@@ -26,6 +26,18 @@ python -m venv .venv
 
 如果系统没有可用 `python`，可使用 Codex 工作区自带 Python 路径创建 `.venv`。
 
+从另一台电脑继续工作：
+
+```powershell
+git clone git@github.com:davidliao404/security-toolbox-resource-discovery.git
+cd security-toolbox-resource-discovery
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -e ".[dev]"
+.\.venv\Scripts\python.exe -m pytest -q
+```
+
+仓库包含 GitHub Actions CI，推送到 `master` 或创建 PR 时会自动运行 `python -m pytest -q`。
+
 运行测试：
 
 ```powershell
