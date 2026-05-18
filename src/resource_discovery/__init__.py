@@ -1,6 +1,7 @@
 """Resource discovery PoC package."""
 
 __all__ = [
+    "audit",
     "models",
     "query_planner",
     "source_client",
@@ -13,4 +14,5 @@ __all__ = [
     "deduplicator",
     "risk_hints",
     "report_builder",
+    "report_renderer",
 ]

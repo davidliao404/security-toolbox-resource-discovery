@@ -81,6 +81,24 @@ python -m venv .venv
 .\.venv\Scripts\python.exe -m resource_discovery.cli --seeds examples\seeds.json --show-snapshot dt_poc_001 --tenant-id tenant_poc --save-dir .\artifacts\snapshots
 ```
 
+导出管理者可读报告：
+
+```powershell
+.\.venv\Scripts\python.exe -m resource_discovery.cli --seeds examples\seeds.json --fixture tests\fixtures\fofa_results.json --export-report .\artifacts\reports\dt_poc_001.md --report-format markdown
+```
+
+也可以导出 HTML：
+
+```powershell
+.\.venv\Scripts\python.exe -m resource_discovery.cli --seeds examples\seeds.json --fixture tests\fixtures\fofa_results.json --export-report .\artifacts\reports\dt_poc_001.html --report-format html
+```
+
+记录 JSONL 审计日志：
+
+```powershell
+.\.venv\Scripts\python.exe -m resource_discovery.cli --seeds examples\seeds.json --fixture tests\fixtures\fofa_results.json --save-dir .\artifacts\snapshots --export-report .\artifacts\reports\dt_poc_001.md --audit-log .\artifacts\audit.jsonl
+```
+
 ## 安全边界
 
 当前 PoC 只使用 fixture 数据，不调用真实 FOFA API，不保存 SaaS 密钥，不执行端口扫描、漏洞验证、弱口令验证或渗透测试。所有风险项均为被动发现线索，需要在客户私有化安全工具箱内进行本地验证。
@@ -95,3 +113,5 @@ python -m venv .venv
 - FOFA API 客户端在缺少 email 或 key 时会直接拒绝构造，不会尝试联网。
 - `live` 模式必须显式传入 `--allow-live-fofa`，否则会在执行前停止。
 - 快照存储按 `tenant_id/task_id.json` 写入，并拒绝包含路径穿越字符的不安全标识。
+- HTML 报告会对内容做转义，避免把发现结果中的标题或服务字段当作 HTML 执行。
+- 审计日志采用 JSONL 追加写入，记录任务开始、快照保存、任务完成和报告导出事件。
