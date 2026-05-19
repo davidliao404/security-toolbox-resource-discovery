@@ -14,14 +14,14 @@ class FofaApiError(RuntimeError):
 class FofaApiClient:
     def __init__(
         self,
-        email: str,
         key: str,
+        email: str | None = None,
         base_url: str = "https://fofa.info/api/v1/search/all",
         opener: Callable | None = None,
         timeout: int = 30,
     ) -> None:
-        if not email.strip() or not key.strip():
-            raise ValueError("FOFA email and key are required")
+        if not key.strip():
+            raise ValueError("FOFA key is required")
         self.email = email
         self.key = key
         self.base_url = base_url
@@ -37,13 +37,14 @@ class FofaApiClient:
     ) -> str:
         qbase64 = base64.b64encode(source_query.encode("utf-8")).decode("ascii")
         params = {
-            "email": self.email,
             "key": self.key,
             "qbase64": qbase64,
             "fields": ",".join(fields),
             "page": str(page),
             "size": str(size),
         }
+        if self.email:
+            params["email"] = self.email
         return f"{self.base_url}?{urlencode(params)}"
 
     def search(

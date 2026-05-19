@@ -37,8 +37,19 @@ def test_builds_search_url_with_qbase64_and_fields():
     assert query["size"] == ["50"]
 
 
-def test_rejects_missing_credentials_before_any_network_use():
-    with pytest.raises(ValueError, match="email and key"):
+def test_builds_key_only_search_url_for_relay():
+    client = FofaApiClient(key="secret", base_url="http://fofa.icu/api/v1/search/all")
+
+    url = client.build_search_url('domain="example.org"', fields=["host"], page=1, size=10)
+    query = parse_qs(urlparse(url).query)
+
+    assert query["key"] == ["secret"]
+    assert "email" not in query
+    assert url.startswith("http://fofa.icu/api/v1/search/all?")
+
+
+def test_rejects_missing_key_before_any_network_use():
+    with pytest.raises(ValueError, match="FOFA key"):
         FofaApiClient(email="", key="")
 
 

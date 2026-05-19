@@ -42,7 +42,7 @@ def normalize_fofa_results(task_id: str, plan: SourceQueryPlan, rows: list[dict]
 
         normalized_fields = [
             field
-            for field in ["ip", "host", "port", "protocol", "service", "title", "product", "url"]
+            for field in ["ip", "host", "port", "protocol", "service", "title", "product", "url", "link"]
             if row.get(field) not in (None, "")
         ]
 
@@ -103,7 +103,7 @@ def normalize_fofa_results(task_id: str, plan: SourceQueryPlan, rows: list[dict]
                 title=row.get("title"),
                 product=row.get("product"),
                 version=row.get("version"),
-                url=row.get("url"),
+                url=row.get("url") or row.get("link"),
                 banner_hash=row.get("banner_hash"),
                 tls=row.get("tls"),
                 first_seen=row.get("first_seen") or seen_at,

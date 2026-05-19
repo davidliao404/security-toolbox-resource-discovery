@@ -70,6 +70,8 @@ PoC 不包含：
 - `dry-run`：只输出受控查询计划和配额校验结果，不调用外部 API。
 - `live`：真实 FOFA 调用模式，必须显式开启并提供凭据；未授权目标禁止使用。
 
+FOFA 兼容中转站可通过 `FOFA_API_KEY` 和 `FOFA_BASE_URL` 环境变量接入，支持 key-only 鉴权。真实查询快照应保存到被 Git 忽略的 `artifacts/` 目录。
+
 后续候选：
 
 - Censys：适合补充证书和国际主机视角。

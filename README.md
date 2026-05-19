@@ -64,6 +64,16 @@ python -m venv .venv
 
 不要对未授权目标运行 live mode。
 
+使用 FOFA 兼容中转站时，可以只使用 API Key，并通过环境变量配置：
+
+```powershell
+$env:FOFA_API_KEY = "<key>"
+$env:FOFA_BASE_URL = "http://fofa.icu/api/v1/search/all"
+.\.venv\Scripts\python.exe -m resource_discovery.cli --mode live --seeds .\artifacts\authorized-seeds.json --allow-live-fofa --save-dir .\artifacts\snapshots --audit-log .\artifacts\audit.jsonl
+```
+
+`artifacts/` 已被 Git 忽略，用于保存真实查询快照、报告和审计日志。
+
 命令会向 stdout 输出 JSON，其中包含：
 
 - `task`
@@ -129,3 +139,4 @@ python -m venv .venv
 - 快照存储按 `tenant_id/task_id.json` 写入，并拒绝包含路径穿越字符的不安全标识。
 - HTML 报告会对内容做转义，避免把发现结果中的标题或服务字段当作 HTML 执行。
 - 审计日志采用 JSONL 追加写入，记录任务开始、快照保存、任务完成和报告导出事件。
+- FOFA 兼容中转站支持 key-only 鉴权，不需要把 API Key 写入仓库。

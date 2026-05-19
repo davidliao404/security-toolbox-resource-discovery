@@ -22,3 +22,25 @@ def test_normalizes_fofa_fixture_results():
     assert batch.evidences[0].source == "fofa"
     assert batch.evidences[0].source_query == 'domain="example.org"'
     assert batch.evidences[0].raw_reference.startswith("fofa:fixture:")
+
+
+def test_normalizer_maps_fofa_link_to_url():
+    seed = DiscoverySeed(seed_id="s1", type="root_domain", value="example.org")
+    plan = plan_fofa_queries("dt_001", [seed])[0]
+
+    batch = normalize_fofa_results(
+        "dt_001",
+        plan,
+        [
+            {
+                "ip": "203.0.113.10",
+                "host": "vpn.example.org",
+                "port": 443,
+                "protocol": "https",
+                "product": "ExampleVPN",
+                "link": "https://vpn.example.org/",
+            }
+        ],
+    )
+
+    assert batch.services[0].url == "https://vpn.example.org/"

@@ -173,6 +173,22 @@ dry-run 不调用外部 API，只输出受控 FOFA 查询计划：
   --audit-log .\artifacts\audit.jsonl
 ```
 
+如果使用 FOFA 兼容中转站，可使用 key-only 配置：
+
+```powershell
+$env:FOFA_API_KEY = "<key>"
+$env:FOFA_BASE_URL = "http://fofa.icu/api/v1/search/all"
+.\.venv\Scripts\python.exe -m resource_discovery.cli `
+  --mode live `
+  --seeds .\artifacts\authorized-seeds.json `
+  --allow-live-fofa `
+  --save-dir .\artifacts\snapshots `
+  --export-report .\artifacts\reports\authorized-domain.md `
+  --audit-log .\artifacts\audit.jsonl
+```
+
+真实查询产生的 `artifacts/` 内容默认不提交到 Git。
+
 ## 10. 当前验证命令
 
 ```powershell

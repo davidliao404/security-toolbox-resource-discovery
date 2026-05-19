@@ -34,10 +34,9 @@ class FofaSourceClient:
         "ip",
         "port",
         "protocol",
-        "service",
         "title",
         "product",
-        "url",
+        "link",
     ]
 
     def __init__(self, api_client: FofaApiClient, fields: list[str] | None = None) -> None:

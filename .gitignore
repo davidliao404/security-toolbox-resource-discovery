@@ -21,6 +21,9 @@ dist/
 build/
 *.egg-info/
 
+# Local generated artifacts and real snapshots
+artifacts/
+
 # Editor and OS files
 .idea/
 .vscode/

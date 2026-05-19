@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 
 from .audit import AuditEvent, JsonlAuditLogger
@@ -20,6 +21,7 @@ def run_and_maybe_save(
     fixture_path=None,
     fofa_email=None,
     fofa_key=None,
+    fofa_base_url=None,
     allow_live_fofa=False,
     save_dir=None,
     audit_log=None,
@@ -31,6 +33,7 @@ def run_and_maybe_save(
         fixture_path=fixture_path,
         fofa_email=fofa_email,
         fofa_key=fofa_key,
+        fofa_base_url=fofa_base_url or "https://fofa.info/api/v1/search/all",
         allow_live_fofa=allow_live_fofa,
     )
     _record(audit_logger, payload, "task_started", {"mode": mode})
@@ -86,6 +89,7 @@ def main() -> None:
     parser.add_argument("--fixture", help="Path to FOFA-like fixture JSON file.")
     parser.add_argument("--fofa-email", help="FOFA account email for live mode.")
     parser.add_argument("--fofa-key", help="FOFA API key for live mode.")
+    parser.add_argument("--fofa-base-url", help="FOFA-compatible search endpoint.")
     parser.add_argument("--allow-live-fofa", action="store_true", help="Explicitly enable live FOFA API calls.")
     parser.add_argument("--save-dir", help="Directory for persisted task snapshots.")
     parser.add_argument("--list-snapshots", action="store_true", help="List persisted task snapshot summaries.")
@@ -95,6 +99,10 @@ def main() -> None:
     parser.add_argument("--report-format", choices=["markdown", "html"], default="markdown")
     parser.add_argument("--audit-log", help="Append JSONL audit events to this file.")
     args = parser.parse_args()
+    credentials = fofa_credentials_from_env()
+    fofa_email = args.fofa_email if args.fofa_email is not None else credentials["fofa_email"]
+    fofa_key = args.fofa_key if args.fofa_key is not None else credentials["fofa_key"]
+    fofa_base_url = args.fofa_base_url if args.fofa_base_url is not None else credentials["fofa_base_url"]
     if args.list_snapshots:
         payload = list_snapshots(_required_save_dir(args.save_dir), _required_tenant_id(args.tenant_id))
     elif args.show_snapshot:
@@ -108,8 +116,9 @@ def main() -> None:
             seeds_path=args.seeds,
             mode=args.mode,
             fixture_path=args.fixture,
-            fofa_email=args.fofa_email,
-            fofa_key=args.fofa_key,
+            fofa_email=fofa_email,
+            fofa_key=fofa_key,
+            fofa_base_url=fofa_base_url,
             allow_live_fofa=args.allow_live_fofa,
             save_dir=args.save_dir,
             audit_log=args.audit_log,
@@ -134,6 +143,14 @@ def _required_tenant_id(tenant_id):
 
 def _display_path(path: Path) -> str:
     return path.as_posix()
+
+
+def fofa_credentials_from_env() -> dict:
+    return {
+        "fofa_email": os.environ.get("FOFA_API_EMAIL"),
+        "fofa_key": os.environ.get("FOFA_API_KEY"),
+        "fofa_base_url": os.environ.get("FOFA_BASE_URL", "https://fofa.info/api/v1/search/all"),
+    }
 
 
 def _record(logger, payload: dict, event_type: str, details: dict) -> None:

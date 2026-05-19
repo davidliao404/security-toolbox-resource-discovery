@@ -27,6 +27,7 @@ def run_discovery(
     fixture_path: str | Path | None = None,
     fofa_email: str | None = None,
     fofa_key: str | None = None,
+    fofa_base_url: str = "https://fofa.info/api/v1/search/all",
     allow_live_fofa: bool = False,
     source_client: SourceClient | None = None,
 ) -> dict:
@@ -54,8 +55,17 @@ def run_discovery(
         if not allow_live_fofa:
             raise LiveExecutionDisabled("Live FOFA execution must be explicitly enabled")
         if not fofa_email or not fofa_key:
-            raise LiveExecutionDisabled("Live FOFA execution requires FOFA credentials")
-        api_client = FofaApiClient(email=fofa_email, key=fofa_key)
+            if not fofa_key:
+                raise LiveExecutionDisabled("Live FOFA execution requires FOFA credentials")
+        if source_client is not None:
+            return _execute_with_client(
+                mode=mode,
+                task_id=task_id,
+                tenant_id=tenant_id,
+                plans=plans,
+                client=source_client,
+            )
+        api_client = FofaApiClient(email=fofa_email, key=fofa_key or "", base_url=fofa_base_url)
         return _execute_with_client(
             mode=mode,
             task_id=task_id,
