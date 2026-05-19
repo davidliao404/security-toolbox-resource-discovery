@@ -107,3 +107,59 @@ def test_minimal_llm_context_hashes_target_and_keeps_no_raw_target():
     assert context["risks"][0]["target_hash"]
     assert "vpn.example.org" not in str(context)
     assert context["risks"][0]["port"] == "443"
+
+
+def test_llm_enrichment_clamps_confidence_adjustment_and_truncates_summary():
+    risk = {
+        "risk_hint_id": "risk_1",
+        "category": "remote_access",
+        "severity": "high",
+        "technical_evidence": ["target: vpn.example.org", "port: 443", "service: vpn"],
+        "confidence": 0.78,
+    }
+
+    enriched = enrich_risk_hints(
+        [risk],
+        {
+            "provider": "fake",
+            "model": "fake-risk-model",
+            "items": [
+                {
+                    "risk_hint_id": "risk_1",
+                    "confidence_adjustment": 0.9,
+                    "external_context_summary": "高" * 500,
+                }
+            ],
+        },
+    )
+
+    assert enriched[0]["llm_enrichment"]["confidence_adjustment"] == 0.2
+    assert enriched[0]["analysis_confidence"] == 0.98
+    assert len(enriched[0]["llm_enrichment"]["external_context_summary"]) <= 200
+
+
+def test_llm_enrichment_ignores_unknown_risk_ids():
+    risk = {
+        "risk_hint_id": "risk_1",
+        "category": "remote_access",
+        "severity": "high",
+        "technical_evidence": ["target: vpn.example.org", "port: 443", "service: vpn"],
+        "confidence": 0.78,
+    }
+
+    enriched = enrich_risk_hints(
+        [risk],
+        {
+            "provider": "fake",
+            "model": "fake-risk-model",
+            "items": [
+                {
+                    "risk_hint_id": "risk_unknown",
+                    "confidence_adjustment": 0.1,
+                    "external_context_summary": "不应进入报告",
+                }
+            ],
+        },
+    )
+
+    assert "llm_enrichment" not in enriched[0]

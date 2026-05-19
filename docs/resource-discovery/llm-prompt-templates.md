@@ -112,3 +112,13 @@
 - 调用超时与失败降级。
 - 模型响应 JSON 校验。
 - 审计事件，包括模型供应商、模型名称、数据共享范围、网络搜索开关和调用结果。
+
+## 6. 已实现的响应防护
+
+当前 `enrich_risk_hints` 已对模型增强结果做基础防护：
+
+- 未知 `risk_hint_id` 会被忽略。
+- `confidence_adjustment` 会被限制在 `-0.2` 到 `0.2`。
+- `external_context_summary` 会截断到 200 字以内。
+- 非列表类型的 `items` 会按空结果处理。
+- 规则置信度不会被覆盖，只新增 `analysis_confidence`。

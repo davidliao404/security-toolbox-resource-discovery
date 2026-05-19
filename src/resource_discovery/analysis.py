@@ -75,10 +75,13 @@ def enrich_risk_hints(
     risk_hints: list[dict[str, Any]],
     enrichment: dict[str, Any],
 ) -> list[dict[str, Any]]:
+    raw_items = enrichment.get("items", [])
+    if not isinstance(raw_items, list):
+        raw_items = []
     items = {
         item.get("risk_hint_id"): item
-        for item in enrichment.get("items", [])
-        if item.get("risk_hint_id")
+        for item in raw_items
+        if isinstance(item, dict) and item.get("risk_hint_id")
     }
     enriched: list[dict[str, Any]] = []
     for risk in risk_hints:
@@ -86,18 +89,21 @@ def enrich_risk_hints(
         if item is None:
             enriched.append(risk)
             continue
+        confidence_adjustment = _bounded_adjustment(item.get("confidence_adjustment", 0))
         enriched.append(
             {
                 **risk,
                 "analysis_confidence": _adjusted_confidence(
                     risk.get("confidence", 0),
-                    item.get("confidence_adjustment", 0),
+                    confidence_adjustment,
                 ),
                 "llm_enrichment": {
                     "provider": enrichment.get("provider"),
                     "model": enrichment.get("model"),
-                    "confidence_adjustment": item.get("confidence_adjustment", 0),
-                    "external_context_summary": item.get("external_context_summary", ""),
+                    "confidence_adjustment": confidence_adjustment,
+                    "external_context_summary": _safe_summary(
+                        item.get("external_context_summary", "")
+                    ),
                 },
             }
         )
@@ -136,3 +142,18 @@ def _adjusted_confidence(base_confidence: Any, adjustment: Any) -> float:
     except (TypeError, ValueError):
         adjusted = 0.0
     return round(min(max(adjusted, 0.0), 1.0), 4)
+
+
+def _bounded_adjustment(value: Any) -> float:
+    try:
+        adjustment = float(value)
+    except (TypeError, ValueError):
+        adjustment = 0.0
+    return round(min(max(adjustment, -0.2), 0.2), 4)
+
+
+def _safe_summary(value: Any, max_length: int = 200) -> str:
+    text = str(value or "").strip()
+    if len(text) <= max_length:
+        return text
+    return text[:max_length]
