@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import sys
 from pathlib import Path
 
 from .audit import AuditEvent, JsonlAuditLogger
@@ -134,7 +135,7 @@ def main() -> None:
     if args.export_report and isinstance(payload, dict) and payload.get("report"):
         saved_report = export_report(payload, args.export_report, args.report_format, audit_log=args.audit_log)
         payload = {**payload, "exported_report_path": _display_path(saved_report)}
-    print(json.dumps(payload, ensure_ascii=False, indent=2))
+    write_json_payload(payload)
 
 
 def _required_save_dir(save_dir):
@@ -151,6 +152,17 @@ def _required_tenant_id(tenant_id):
 
 def _display_path(path: Path) -> str:
     return path.as_posix()
+
+
+def format_json_payload(payload) -> str:
+    return json.dumps(payload, ensure_ascii=False, indent=2)
+
+
+def write_json_payload(payload) -> None:
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")
+    sys.stdout.write(format_json_payload(payload))
+    sys.stdout.write("\n")
 
 
 def fofa_credentials_from_env() -> dict:
