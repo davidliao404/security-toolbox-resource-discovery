@@ -13,6 +13,7 @@
 - 管理者可读 Markdown/HTML 报告导出。
 - JSONL 审计日志。
 - 风险线索整改优先级。
+- YAML 风险规则库。
 
 当前默认不调用真实 FOFA API，不需要 SaaS 密钥。
 
@@ -207,6 +208,7 @@ $env:FOFA_BASE_URL = "http://fofa.icu/api/v1/search/all"
 - 去重。
 - 风险线索。
 - 整改优先级。
+- YAML 风险规则加载。
 - 报告构建。
 - Markdown/HTML 渲染。
 - CLI 执行模式。
@@ -219,5 +221,8 @@ $env:FOFA_BASE_URL = "http://fofa.icu/api/v1/search/all"
 
 当前重要 TODO：
 
-- 将硬编码风险规则迁移为 `risk_rules.yml` 或等价配置。
 - 设计双轨风险分析：默认规则库，客户显式同意时使用轻量提示语 Agent + 支持网络搜索的大模型增强置信度和报告表达。
+
+已完成：
+
+- 将硬编码风险规则迁移为包内 `src/resource_discovery/risk_rules.yml`。

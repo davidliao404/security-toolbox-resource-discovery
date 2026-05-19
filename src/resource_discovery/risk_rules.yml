@@ -1,0 +1,54 @@
+version: 1
+default_confidence: 0.78
+rules:
+  - category: remote_access
+    severity: high
+    title: 发现疑似互联网暴露的远程访问入口
+    manager_summary: 该入口可能允许员工或管理员从互联网访问内部系统，建议优先复核访问控制。
+    recommended_action: 在安全工具箱中创建本地验证任务，确认访问控制、MFA 和补丁状态。
+    owner_hint: IT 管理员
+    priority_rank: 2
+    match:
+      ports: [22, 3389, 5900, 8443]
+      keywords: [vpn, rdp, ssh, remote]
+
+  - category: admin_portal
+    severity: high
+    title: 发现疑似互联网暴露的管理后台
+    manager_summary: 管理后台暴露会增加未授权访问风险，建议确认是否必须公网访问。
+    recommended_action: 复核后台来源限制、认证策略和公网暴露必要性。
+    owner_hint: IT 管理员
+    priority_rank: 1
+    match:
+      keywords: [admin, manage, console, 后台, 管理]
+
+  - category: test_environment
+    severity: medium
+    title: 发现疑似测试环境暴露在互联网
+    manager_summary: 测试环境通常缺少正式安全加固，建议确认是否应对公网开放。
+    recommended_action: 确认环境用途，优先下线不必要暴露或增加访问控制。
+    owner_hint: 系统负责人
+    priority_rank: 4
+    match:
+      keywords: [test, dev, staging, uat]
+
+  - category: database_exposure
+    severity: high
+    title: 发现疑似数据库或检索服务暴露
+    manager_summary: 数据库和检索服务公网暴露可能导致数据泄露，建议立即复核。
+    recommended_action: 确认服务归属、网络访问控制和认证配置。
+    owner_hint: IT 管理员
+    priority_rank: 0
+    match:
+      ports: [3306, 5432, 1433, 1521, 6379, 27017, 9200]
+
+  - category: middleware_exposure
+    severity: medium
+    title: 发现疑似中间件或运维服务暴露
+    manager_summary: 中间件和运维服务暴露可能扩大攻击面，建议确认版本和访问控制。
+    recommended_action: 创建本地巡检任务，检查版本、补丁和认证策略。
+    owner_hint: IT 管理员
+    priority_rank: 3
+    match:
+      ports: [8080, 8161, 9000, 9090]
+      keywords: [jenkins, tomcat, weblogic]

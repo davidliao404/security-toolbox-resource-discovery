@@ -13,6 +13,7 @@ __all__ = [
     "normalizer",
     "deduplicator",
     "risk_hints",
+    "risk_rules",
     "report_builder",
     "report_renderer",
     "remediation",

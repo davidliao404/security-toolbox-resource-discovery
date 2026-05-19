@@ -95,7 +95,7 @@ Risk Hint Engine
 
 ### 实施建议
 
-1. 先把当前硬编码规则迁移到 `risk_rules.yml`。
+1. 已完成：把当前硬编码规则迁移到 `risk_rules.yml`。
 2. 增加 `analysis_mode`：
    - `rules_only`
    - `rules_plus_llm`
