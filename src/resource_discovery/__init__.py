@@ -13,6 +13,7 @@ __all__ = [
     "task_state",
     "task_store",
     "normalizer",
+    "prompt_templates",
     "deduplicator",
     "risk_hints",
     "risk_rules",

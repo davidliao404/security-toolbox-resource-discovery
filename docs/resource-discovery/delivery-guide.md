@@ -184,6 +184,14 @@ rules_plus_llm
 - `examples/tenant_analysis_rules_only.json`
 - `examples/tenant_analysis_llm.example.json`
 
+预设提示语模板：
+
+- `render_risk_confidence_prompt(context)`
+- `render_manager_summary_prompt(context)`
+- `render_remediation_prompt(context)`
+
+模板实现位于 `src/resource_discovery/prompt_templates.py`，设计说明见 `docs/resource-discovery/llm-prompt-templates.md`。
+
 增强模式的最小化上下文包含：
 
 - 风险线索 ID。
@@ -295,7 +303,7 @@ $env:FOFA_BASE_URL = "http://fofa.icu/api/v1/search/all"
 
 当前重要 TODO：
 
-- 为双轨风险分析补充真实大模型供应商连接器、提示语模板和费用/token 审计。
+- 为双轨风险分析补充真实大模型供应商连接器和费用/token 审计。
 
 已完成：
 
@@ -303,3 +311,4 @@ $env:FOFA_BASE_URL = "http://fofa.icu/api/v1/search/all"
 - 增加 `rules_only` / `rules_plus_llm` 分析模式接口。
 - 报告和审计日志标识分析来源。
 - 增加租户级分析配置文件加载与安全校验。
+- 增加大模型增强提示语模板。

@@ -108,7 +108,7 @@ Risk Hint Engine
    - `llm_model`
    - `web_search_enabled`
    - `data_sharing_level`
-5. 待办：增加提示语模板：
+5. 已完成：增加提示语模板：
    - 管理者摘要增强提示语。
    - 风险置信度增强提示语。
    - 整改建议增强提示语。

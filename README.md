@@ -113,6 +113,8 @@ $env:FOFA_BASE_URL = "http://fofa.icu/api/v1/search/all"
 - `examples/tenant_analysis_rules_only.json`：默认规则库模式。
 - `examples/tenant_analysis_llm.example.json`：LLM 增强配置样例，不包含 API Key，当前需要上层服务显式注入模型增强器后才能运行。
 
+预设提示语模板已放在 `src/resource_discovery/prompt_templates.py`，设计说明见 `docs/resource-discovery/llm-prompt-templates.md`。模板只接收最小化上下文，要求模型输出结构化 JSON，并明确禁止宣称漏洞已确认或生成攻击步骤。
+
 大模型增强路径的当前约束：
 
 - 默认关闭，必须显式启用。
