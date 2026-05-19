@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 from .analysis import LlmRiskEnricher, apply_analysis
+from .analysis_config import TenantAnalysisConfig
 from .deduplicator import deduplicate_assets, deduplicate_services
 from .fofa_client import FofaApiClient
 from .models import DiscoverySeed, SourceQueryPlan
@@ -37,10 +38,22 @@ def run_discovery(
     llm_enricher: LlmRiskEnricher | None = None,
     web_search_enabled: bool = False,
     data_sharing_level: str = "none",
+    llm_provider: str | None = None,
+    llm_model: str | None = None,
+    tenant_analysis_config: TenantAnalysisConfig | None = None,
 ) -> dict:
     payload = json.loads(Path(seeds_path).read_text(encoding="utf-8"))
     task_id = payload.get("task_id", "dt_poc_001")
     tenant_id = payload.get("tenant_id", "tenant_poc")
+    analysis_options = _resolve_analysis_options(
+        tenant_id=tenant_id,
+        analysis_mode=analysis_mode,
+        web_search_enabled=web_search_enabled,
+        data_sharing_level=data_sharing_level,
+        llm_provider=llm_provider,
+        llm_model=llm_model,
+        tenant_analysis_config=tenant_analysis_config,
+    )
     seeds = [DiscoverySeed(**seed) for seed in payload["seeds"]]
     validate_seeds(seeds)
     plans = plan_fofa_queries(task_id, seeds, page_limit=page_limit, result_limit=result_limit)
@@ -57,10 +70,12 @@ def run_discovery(
             tenant_id=tenant_id,
             plans=plans,
             client=source_client or FixtureSourceClient(fixture_path),
-            analysis_mode=analysis_mode,
+            analysis_mode=analysis_options["analysis_mode"],
             llm_enricher=llm_enricher,
-            web_search_enabled=web_search_enabled,
-            data_sharing_level=data_sharing_level,
+            web_search_enabled=analysis_options["web_search_enabled"],
+            data_sharing_level=analysis_options["data_sharing_level"],
+            llm_provider=analysis_options["llm_provider"],
+            llm_model=analysis_options["llm_model"],
         )
     if mode == "live":
         if not allow_live_fofa:
@@ -75,10 +90,12 @@ def run_discovery(
                 tenant_id=tenant_id,
                 plans=plans,
                 client=source_client,
-                analysis_mode=analysis_mode,
+                analysis_mode=analysis_options["analysis_mode"],
                 llm_enricher=llm_enricher,
-                web_search_enabled=web_search_enabled,
-                data_sharing_level=data_sharing_level,
+                web_search_enabled=analysis_options["web_search_enabled"],
+                data_sharing_level=analysis_options["data_sharing_level"],
+                llm_provider=analysis_options["llm_provider"],
+                llm_model=analysis_options["llm_model"],
             )
         api_client = FofaApiClient(email=fofa_email, key=fofa_key or "", base_url=fofa_base_url)
         return _execute_with_client(
@@ -87,10 +104,12 @@ def run_discovery(
             tenant_id=tenant_id,
             plans=plans,
             client=FofaSourceClient(api_client),
-            analysis_mode=analysis_mode,
+            analysis_mode=analysis_options["analysis_mode"],
             llm_enricher=llm_enricher,
-            web_search_enabled=web_search_enabled,
-            data_sharing_level=data_sharing_level,
+            web_search_enabled=analysis_options["web_search_enabled"],
+            data_sharing_level=analysis_options["data_sharing_level"],
+            llm_provider=analysis_options["llm_provider"],
+            llm_model=analysis_options["llm_model"],
         )
     raise ValueError(f"Unsupported execution mode: {mode}")
 
@@ -118,6 +137,8 @@ def _execute_with_client(
     llm_enricher: LlmRiskEnricher | None = None,
     web_search_enabled: bool = False,
     data_sharing_level: str = "none",
+    llm_provider: str | None = None,
+    llm_model: str | None = None,
 ) -> dict:
     assets = []
     services = []
@@ -155,6 +176,8 @@ def _execute_with_client(
         llm_enricher=llm_enricher,
         web_search_enabled=web_search_enabled,
         data_sharing_level=data_sharing_level,
+        llm_provider=llm_provider,
+        llm_model=llm_model,
     )
     remediation = build_remediation_plan(risk_hint_dicts)
 
@@ -181,3 +204,23 @@ def _execute_with_client(
     }
     payload["snapshot"] = build_report_snapshot(payload)
     return payload
+
+
+def _resolve_analysis_options(
+    tenant_id: str,
+    analysis_mode: str,
+    web_search_enabled: bool,
+    data_sharing_level: str,
+    llm_provider: str | None,
+    llm_model: str | None,
+    tenant_analysis_config: TenantAnalysisConfig | None,
+) -> dict:
+    if tenant_analysis_config is not None:
+        return tenant_analysis_config.resolve_options(tenant_id)
+    return {
+        "analysis_mode": analysis_mode,
+        "web_search_enabled": web_search_enabled,
+        "data_sharing_level": data_sharing_level,
+        "llm_provider": llm_provider,
+        "llm_model": llm_model,
+    }

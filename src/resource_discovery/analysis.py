@@ -19,6 +19,8 @@ def apply_analysis(
     llm_enricher: LlmRiskEnricher | None = None,
     web_search_enabled: bool = False,
     data_sharing_level: str = "none",
+    llm_provider: str | None = None,
+    llm_model: str | None = None,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     if analysis_mode == "rules_only":
         return risk_hints, {
@@ -36,15 +38,20 @@ def apply_analysis(
         risk_hints,
         web_search_enabled=web_search_enabled,
         data_sharing_level=data_sharing_level,
+        llm_provider=llm_provider,
+        llm_model=llm_model,
     )
     enrichment = llm_enricher.enrich(context)
-    return enrich_risk_hints(risk_hints, enrichment), {
+    provider = enrichment.get("provider") or llm_provider
+    model = enrichment.get("model") or llm_model
+    enriched_payload = {**enrichment, "provider": provider, "model": model}
+    return enrich_risk_hints(risk_hints, enriched_payload), {
         "analysis_mode": "rules_plus_llm",
         "llm_enabled": True,
         "web_search_enabled": web_search_enabled,
         "data_sharing_level": data_sharing_level,
-        "provider": enrichment.get("provider"),
-        "model": enrichment.get("model"),
+        "provider": provider,
+        "model": model,
     }
 
 
@@ -52,10 +59,14 @@ def build_minimal_llm_context(
     risk_hints: list[dict[str, Any]],
     web_search_enabled: bool,
     data_sharing_level: str = "minimal",
+    llm_provider: str | None = None,
+    llm_model: str | None = None,
 ) -> dict[str, Any]:
     return {
         "data_sharing_level": data_sharing_level,
         "web_search_enabled": web_search_enabled,
+        "llm_provider": llm_provider,
+        "llm_model": llm_model,
         "risks": [_minimal_risk_context(risk) for risk in risk_hints],
     }
 

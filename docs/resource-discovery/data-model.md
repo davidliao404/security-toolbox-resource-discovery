@@ -206,7 +206,56 @@ MVP 必做：`root_domain`、`organization_name`、`ip_cidr`。
 
 MVP 默认不输出 `critical` 漏洞结论，除非只是表达“需紧急复核的暴露线索”。
 
-## 8. 报告模型 `ExposureReport`
+## 8. 分析配置模型 `TenantAnalysisConfig`
+
+```json
+{
+  "tenant_id": "tenant_001",
+  "llm_enabled": false,
+  "llm_provider": null,
+  "llm_model": null,
+  "web_search_enabled": false,
+  "data_sharing_level": "none"
+}
+```
+
+字段说明：
+
+| 字段 | 说明 |
+| --- | --- |
+| `tenant_id` | 配置所属租户，必须与任务租户一致 |
+| `llm_enabled` | 是否允许大模型增强分析，默认关闭 |
+| `llm_provider` | 大模型供应商，启用时必填 |
+| `llm_model` | 大模型名称，启用时必填 |
+| `web_search_enabled` | 是否允许模型侧网络搜索，必须单独配置 |
+| `data_sharing_level` | 数据共享范围，当前取值 `none` 或 `minimal` |
+
+约束：
+
+- `llm_enabled=false` 时强制 `rules_only`，并忽略模型供应商、模型名称、网络搜索和共享范围。
+- `llm_enabled=true` 时必须使用 `data_sharing_level=minimal`。
+- 配置不得包含模型 API Key；密钥必须走独立密钥管理。
+
+## 9. 分析结果模型 `AnalysisMetadata`
+
+```json
+{
+  "analysis_mode": "rules_only",
+  "llm_enabled": false,
+  "web_search_enabled": false,
+  "data_sharing_level": "none",
+  "provider": null,
+  "model": null
+}
+```
+
+用途：
+
+- 在报告中标识分析来源。
+- 在审计日志中记录是否使用大模型增强。
+- 帮助售前和客户解释结论来自规则还是可选外部上下文。
+
+## 10. 报告模型 `ExposureReport`
 
 ```json
 {
@@ -232,7 +281,7 @@ MVP 默认不输出 `critical` 漏洞结论，除非只是表达“需紧急复�
 }
 ```
 
-## 9. SaaS 来源追踪模型 `SourceEvidence`
+## 11. SaaS 来源追踪模型 `SourceEvidence`
 
 ```json
 {
@@ -265,7 +314,7 @@ MVP 默认不输出 `critical` 漏洞结论，除非只是表达“需紧急复�
 - `evidence`
 - `normalized_fields`
 
-## 10. 去重键设计
+## 12. 去重键设计
 
 主去重键：
 
@@ -295,7 +344,7 @@ vpn.example.org|443|https|vpn
 - 置信度取加权结果，不简单取最高值。
 - 冲突字段保留来源标记。
 
-## 11. 快照与留存
+## 13. 快照与留存
 
 短期快照包含：
 

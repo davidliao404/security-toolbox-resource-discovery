@@ -2,6 +2,7 @@
 
 __all__ = [
     "analysis",
+    "analysis_config",
     "audit",
     "models",
     "query_planner",

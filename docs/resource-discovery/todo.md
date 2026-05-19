@@ -102,7 +102,7 @@ Risk Hint Engine
    - 哪些结论经过大模型增强。
    - 是否启用网络搜索。
    - 数据共享范围。
-4. 待办：增加租户级配置：
+4. 已完成：增加租户级配置：
    - `llm_enabled`
    - `llm_provider`
    - `llm_model`

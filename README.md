@@ -102,6 +102,17 @@ $env:FOFA_BASE_URL = "http://fofa.icu/api/v1/search/all"
 
 `rules_plus_llm` 已作为代码扩展点存在，用于后续接入客户显式授权的大模型 API Key。当前 PoC 尚未内置真实大模型供应商连接器；如果没有显式注入 `llm_enricher`，执行会拒绝继续，避免误把敏感暴露面数据发给第三方。
 
+也可以使用租户级 JSON 配置统一控制分析模式。配置文件会覆盖命令行上的 `--analysis-mode`、`--web-search-enabled` 和 `--data-sharing-level`：
+
+```powershell
+.\.venv\Scripts\python.exe -m resource_discovery.cli --seeds examples\seeds.json --fixture tests\fixtures\fofa_results.json --tenant-analysis-config examples\tenant_analysis_rules_only.json
+```
+
+示例文件：
+
+- `examples/tenant_analysis_rules_only.json`：默认规则库模式。
+- `examples/tenant_analysis_llm.example.json`：LLM 增强配置样例，不包含 API Key，当前需要上层服务显式注入模型增强器后才能运行。
+
 大模型增强路径的当前约束：
 
 - 默认关闭，必须显式启用。

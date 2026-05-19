@@ -161,6 +161,29 @@ rules_plus_llm
 
 当前 PoC 已保留 `rules_plus_llm` 代码接口，但尚未内置真实大模型供应商连接器。该模式必须由上层服务显式注入 `llm_enricher` 后才能运行；否则会拒绝执行。这样做是为了防止在没有客户授权、没有模型供应商配置、没有费用和合规边界时误发数据。
 
+租户级配置文件可以统一控制分析模式：
+
+```powershell
+.\.venv\Scripts\python.exe -m resource_discovery.cli `
+  --seeds examples\seeds.json `
+  --fixture tests\fixtures\fofa_results.json `
+  --tenant-analysis-config examples\tenant_analysis_rules_only.json
+```
+
+配置文件字段：
+
+- `tenant_id`：必须与任务中的租户一致。
+- `llm_enabled`：默认关闭；关闭时强制 `rules_only`。
+- `llm_provider`：启用 LLM 时必须提供，例如 `openai`。
+- `llm_model`：启用 LLM 时必须提供，例如 `gpt-5.5`。
+- `web_search_enabled`：是否允许模型侧网络搜索。
+- `data_sharing_level`：当前只允许 `none` 或 `minimal`；启用 LLM 时必须是 `minimal`。
+
+示例文件：
+
+- `examples/tenant_analysis_rules_only.json`
+- `examples/tenant_analysis_llm.example.json`
+
 增强模式的最小化上下文包含：
 
 - 风险线索 ID。
@@ -272,10 +295,11 @@ $env:FOFA_BASE_URL = "http://fofa.icu/api/v1/search/all"
 
 当前重要 TODO：
 
-- 为双轨风险分析补充租户级配置、真实大模型供应商连接器、提示语模板和费用/token 审计。
+- 为双轨风险分析补充真实大模型供应商连接器、提示语模板和费用/token 审计。
 
 已完成：
 
 - 将硬编码风险规则迁移为包内 `src/resource_discovery/risk_rules.yml`。
 - 增加 `rules_only` / `rules_plus_llm` 分析模式接口。
 - 报告和审计日志标识分析来源。
+- 增加租户级分析配置文件加载与安全校验。

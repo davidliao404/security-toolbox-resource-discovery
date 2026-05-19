@@ -1,0 +1,8 @@
+{
+  "tenant_id": "tenant_poc",
+  "llm_enabled": true,
+  "llm_provider": "openai",
+  "llm_model": "gpt-5.5",
+  "web_search_enabled": true,
+  "data_sharing_level": "minimal"
+}

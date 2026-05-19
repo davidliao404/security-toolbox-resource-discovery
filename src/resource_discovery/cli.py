@@ -6,6 +6,7 @@ import os
 import sys
 from pathlib import Path
 
+from .analysis_config import load_tenant_analysis_config
 from .audit import AuditEvent, JsonlAuditLogger
 from .execution import run_discovery
 from .report_renderer import render_html_report, render_markdown_report
@@ -32,6 +33,7 @@ def run_and_maybe_save(
     llm_enricher=None,
     web_search_enabled=False,
     data_sharing_level="none",
+    tenant_analysis_config=None,
 ) -> dict:
     audit_logger = JsonlAuditLogger(audit_log) if audit_log is not None else None
     payload = run_discovery(
@@ -48,6 +50,7 @@ def run_and_maybe_save(
         llm_enricher=llm_enricher,
         web_search_enabled=web_search_enabled,
         data_sharing_level=data_sharing_level,
+        tenant_analysis_config=tenant_analysis_config,
     )
     _record(audit_logger, payload, "task_started", {"mode": mode})
     if save_dir is not None:
@@ -127,6 +130,10 @@ def main() -> None:
         default="none",
         help="Data sharing scope for optional LLM risk enrichment.",
     )
+    parser.add_argument(
+        "--tenant-analysis-config",
+        help="Path to tenant-level JSON analysis config. Overrides analysis flags when provided.",
+    )
     parser.add_argument("--save-dir", help="Directory for persisted task snapshots.")
     parser.add_argument("--list-snapshots", action="store_true", help="List persisted task snapshot summaries.")
     parser.add_argument("--show-snapshot", help="Load and print a persisted task snapshot by task ID.")
@@ -139,6 +146,11 @@ def main() -> None:
     fofa_email = args.fofa_email if args.fofa_email is not None else credentials["fofa_email"]
     fofa_key = args.fofa_key if args.fofa_key is not None else credentials["fofa_key"]
     fofa_base_url = args.fofa_base_url if args.fofa_base_url is not None else credentials["fofa_base_url"]
+    tenant_analysis_config = (
+        load_tenant_analysis_config(args.tenant_analysis_config)
+        if args.tenant_analysis_config
+        else None
+    )
     if args.list_snapshots:
         payload = list_snapshots(_required_save_dir(args.save_dir), _required_tenant_id(args.tenant_id))
     elif args.show_snapshot:
@@ -163,6 +175,7 @@ def main() -> None:
             analysis_mode=args.analysis_mode,
             web_search_enabled=args.web_search_enabled,
             data_sharing_level=args.data_sharing_level,
+            tenant_analysis_config=tenant_analysis_config,
         )
     if args.export_report and isinstance(payload, dict) and payload.get("report"):
         saved_report = export_report(payload, args.export_report, args.report_format, audit_log=args.audit_log)
