@@ -28,6 +28,10 @@ def run_and_maybe_save(
     audit_log=None,
     page_limit=10,
     result_limit=1000,
+    analysis_mode="rules_only",
+    llm_enricher=None,
+    web_search_enabled=False,
+    data_sharing_level="none",
 ) -> dict:
     audit_logger = JsonlAuditLogger(audit_log) if audit_log is not None else None
     payload = run_discovery(
@@ -40,6 +44,10 @@ def run_and_maybe_save(
         allow_live_fofa=allow_live_fofa,
         page_limit=page_limit,
         result_limit=result_limit,
+        analysis_mode=analysis_mode,
+        llm_enricher=llm_enricher,
+        web_search_enabled=web_search_enabled,
+        data_sharing_level=data_sharing_level,
     )
     _record(audit_logger, payload, "task_started", {"mode": mode})
     if save_dir is not None:
@@ -54,6 +62,10 @@ def run_and_maybe_save(
             "status": payload.get("task", {}).get("status"),
             "asset_count": len(payload.get("assets", [])),
             "risk_hint_count": len(payload.get("risk_hints", [])),
+            "analysis_mode": payload.get("analysis", {}).get("analysis_mode"),
+            "llm_enabled": payload.get("analysis", {}).get("llm_enabled"),
+            "web_search_enabled": payload.get("analysis", {}).get("web_search_enabled"),
+            "data_sharing_level": payload.get("analysis", {}).get("data_sharing_level"),
         },
     )
     return payload
@@ -98,6 +110,23 @@ def main() -> None:
     parser.add_argument("--allow-live-fofa", action="store_true", help="Explicitly enable live FOFA API calls.")
     parser.add_argument("--page-limit", type=int, default=10, help="Maximum pages per query plan.")
     parser.add_argument("--result-limit", type=int, default=1000, help="Maximum results per query plan.")
+    parser.add_argument(
+        "--analysis-mode",
+        choices=["rules_only", "rules_plus_llm"],
+        default="rules_only",
+        help="Risk analysis mode. rules_plus_llm requires an explicitly configured LLM enricher.",
+    )
+    parser.add_argument(
+        "--web-search-enabled",
+        action="store_true",
+        help="Record intent to allow web search for optional LLM risk enrichment.",
+    )
+    parser.add_argument(
+        "--data-sharing-level",
+        choices=["none", "minimal"],
+        default="none",
+        help="Data sharing scope for optional LLM risk enrichment.",
+    )
     parser.add_argument("--save-dir", help="Directory for persisted task snapshots.")
     parser.add_argument("--list-snapshots", action="store_true", help="List persisted task snapshot summaries.")
     parser.add_argument("--show-snapshot", help="Load and print a persisted task snapshot by task ID.")
@@ -131,6 +160,9 @@ def main() -> None:
             audit_log=args.audit_log,
             page_limit=args.page_limit,
             result_limit=args.result_limit,
+            analysis_mode=args.analysis_mode,
+            web_search_enabled=args.web_search_enabled,
+            data_sharing_level=args.data_sharing_level,
         )
     if args.export_report and isinstance(payload, dict) and payload.get("report"):
         saved_report = export_report(payload, args.export_report, args.report_format, audit_log=args.audit_log)

@@ -10,6 +10,32 @@ def _payload():
     )
 
 
+def _llm_payload():
+    class FakeEnricher:
+        def enrich(self, context):
+            return {
+                "provider": "fake",
+                "model": "fake-risk-model",
+                "items": [
+                    {
+                        "risk_hint_id": context["risks"][0]["risk_hint_id"],
+                        "confidence_adjustment": 0.05,
+                        "external_context_summary": "公开资料显示该类入口应优先复核。",
+                    }
+                ],
+            }
+
+    return run_discovery(
+        seeds_path="examples/seeds.json",
+        mode="fixture",
+        fixture_path="tests/fixtures/fofa_results.json",
+        analysis_mode="rules_plus_llm",
+        llm_enricher=FakeEnricher(),
+        web_search_enabled=True,
+        data_sharing_level="minimal",
+    )
+
+
 def test_render_markdown_report_contains_manager_sections_and_appendix():
     markdown = render_markdown_report(_payload())
 
@@ -22,6 +48,15 @@ def test_render_markdown_report_contains_manager_sections_and_appendix():
     assert "## 技术附录：暴露服务" in markdown
     assert "| vpn.example.org | 203.0.113.10 | 443 | https | vpn |" in markdown
     assert "所有发现均来自被动资产发现数据，需结合本地验证确认。" in markdown
+
+
+def test_render_markdown_report_marks_llm_enrichment_source():
+    markdown = render_markdown_report(_llm_payload())
+
+    assert "## 分析来源" in markdown
+    assert "分析模式：规则库 + 大模型增强" in markdown
+    assert "大模型增强：fake / fake-risk-model" in markdown
+    assert "大模型补充：公开资料显示该类入口应优先复核。" in markdown
 
 
 def test_render_html_report_escapes_content_and_contains_summary():

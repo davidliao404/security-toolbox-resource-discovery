@@ -15,6 +15,7 @@
 - 输出任务信封，包含 `success`、`partial_success`、`failed` 等状态、错误列表、配额消耗和报告快照。
 - 根据风险线索生成整改优先级，给出建议负责人和本地验证动作。
 - 风险识别规则来自包内 `risk_rules.yml`，可配置端口、关键字、严重级别、处置建议和优先级。
+- 支持双轨风险分析接口：默认 `rules_only` 只使用规则库；`rules_plus_llm` 作为显式注入的大模型增强扩展点，使用最小化上下文并在报告与审计中标识来源。
 
 ## 本地运行
 
@@ -84,9 +85,30 @@ $env:FOFA_BASE_URL = "http://fofa.icu/api/v1/search/all"
 - `risk_hints`
 - `remediation`
 - `source_evidence`
+- `analysis`
 - `snapshot`
 
 当某个供应商查询失败但其他查询成功时，执行结果会降级为 `partial_success`，保留已获取结果并在 `task.errors` 中记录失败来源、查询类型和错误信息。
+
+## 风险分析模式
+
+默认模式是规则库分析：
+
+```powershell
+.\.venv\Scripts\python.exe -m resource_discovery.cli --seeds examples\seeds.json --fixture tests\fixtures\fofa_results.json --analysis-mode rules_only
+```
+
+`rules_only` 不会向第三方大模型发送资产、域名、标题、组件或风险线索。报告会显示“分析来源”，审计日志会记录 `analysis_mode`、`llm_enabled`、`web_search_enabled` 和 `data_sharing_level`。
+
+`rules_plus_llm` 已作为代码扩展点存在，用于后续接入客户显式授权的大模型 API Key。当前 PoC 尚未内置真实大模型供应商连接器；如果没有显式注入 `llm_enricher`，执行会拒绝继续，避免误把敏感暴露面数据发给第三方。
+
+大模型增强路径的当前约束：
+
+- 默认关闭，必须显式启用。
+- 默认不发送原始 SaaS 响应。
+- 最小化上下文只保留风险类别、严重级别、端口、服务和哈希化资产标识。
+- 大模型只能给出置信度调整建议和外部上下文摘要，不能把被动线索改写为“已确认漏洞”。
+- 报告中会区分规则置信度和增强后置信度。
 
 保存任务快照：
 
@@ -144,6 +166,7 @@ $env:FOFA_BASE_URL = "http://fofa.icu/api/v1/search/all"
 - 单个查询计划默认最多 1000 条结果。
 - FOFA API 客户端在缺少 email 或 key 时会直接拒绝构造，不会尝试联网。
 - `live` 模式必须显式传入 `--allow-live-fofa`，否则会在执行前停止。
+- `rules_plus_llm` 模式必须显式注入大模型增强器；当前 CLI 不内置真实供应商调用。
 - 快照存储按 `tenant_id/task_id.json` 写入，并拒绝包含路径穿越字符的不安全标识。
 - HTML 报告会对内容做转义，避免把发现结果中的标题或服务字段当作 HTML 执行。
 - 审计日志采用 JSONL 追加写入，记录任务开始、快照保存、任务完成和报告导出事件。

@@ -14,6 +14,7 @@
 - JSONL 审计日志。
 - 风险线索整改优先级。
 - YAML 风险规则库。
+- 双轨风险分析接口：默认规则库，可选大模型增强扩展点。
 
 当前默认不调用真实 FOFA API，不需要 SaaS 密钥。
 
@@ -48,6 +49,7 @@ python -m venv .venv
 - `risk_hints`
 - `remediation`
 - `source_evidence`
+- `analysis`
 - `snapshot`
 
 ## 4. 查看查询计划
@@ -131,7 +133,53 @@ dry-run 不调用外部 API，只输出受控 FOFA 查询计划：
 - `task_completed`
 - `report_exported`
 
-## 8. 安全边界
+任务完成事件会记录分析模式字段：
+
+- `analysis_mode`
+- `llm_enabled`
+- `web_search_enabled`
+- `data_sharing_level`
+
+## 8. 风险分析模式
+
+默认模式：
+
+```powershell
+.\.venv\Scripts\python.exe -m resource_discovery.cli `
+  --seeds examples\seeds.json `
+  --fixture tests\fixtures\fofa_results.json `
+  --analysis-mode rules_only
+```
+
+`rules_only` 仅使用 `src/resource_discovery/risk_rules.yml`，不向第三方大模型发送任何发现结果。
+
+可选增强模式：
+
+```text
+rules_plus_llm
+```
+
+当前 PoC 已保留 `rules_plus_llm` 代码接口，但尚未内置真实大模型供应商连接器。该模式必须由上层服务显式注入 `llm_enricher` 后才能运行；否则会拒绝执行。这样做是为了防止在没有客户授权、没有模型供应商配置、没有费用和合规边界时误发数据。
+
+增强模式的最小化上下文包含：
+
+- 风险线索 ID。
+- 风险类别和严重级别。
+- 规则置信度。
+- 端口和服务。
+- 哈希化资产标识。
+
+增强模式默认不包含：
+
+- 原始 FOFA/中转站响应。
+- 明文域名或 IP。
+- 客户内部备注。
+- SaaS API Key。
+- 本地扫描或验证结果。
+
+报告会显示“分析来源”，并在有增强结果时显示“大模型补充”和“增强后置信度”。规则置信度不会被覆盖，大模型只提供额外解释和置信度调整建议。
+
+## 9. 安全边界
 
 当前 PoC 明确不做：
 
@@ -150,8 +198,9 @@ dry-run 不调用外部 API，只输出受控 FOFA 查询计划：
 - 单个查询计划默认最多 1000 条结果。
 - `live` 模式必须显式传入 `--allow-live-fofa`。
 - 缺少 FOFA email/key 时不会构造真实 API 客户端。
+- `rules_plus_llm` 必须显式注入大模型增强器，当前 CLI 不直接调用第三方模型。
 
-## 9. 真实 FOFA 接入条件
+## 10. 真实 FOFA 接入条件
 
 进入真实 FOFA 调用前必须具备：
 
@@ -192,7 +241,7 @@ $env:FOFA_BASE_URL = "http://fofa.icu/api/v1/search/all"
 
 真实查询产生的 `artifacts/` 内容默认不提交到 Git。
 
-## 10. 当前验证命令
+## 11. 当前验证命令
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest -q
@@ -214,15 +263,19 @@ $env:FOFA_BASE_URL = "http://fofa.icu/api/v1/search/all"
 - CLI 执行模式。
 - 快照存储。
 - 审计日志。
+- 风险分析模式。
+- 大模型增强扩展点的数据最小化。
 
-## 11. 后续优化 TODO
+## 12. 后续优化 TODO
 
 后续优化集中记录在 `docs/resource-discovery/todo.md`。
 
 当前重要 TODO：
 
-- 设计双轨风险分析：默认规则库，客户显式同意时使用轻量提示语 Agent + 支持网络搜索的大模型增强置信度和报告表达。
+- 为双轨风险分析补充租户级配置、真实大模型供应商连接器、提示语模板和费用/token 审计。
 
 已完成：
 
 - 将硬编码风险规则迁移为包内 `src/resource_discovery/risk_rules.yml`。
+- 增加 `rules_only` / `rules_plus_llm` 分析模式接口。
+- 报告和审计日志标识分析来源。

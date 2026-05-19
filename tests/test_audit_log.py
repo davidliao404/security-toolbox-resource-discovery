@@ -46,6 +46,8 @@ def test_run_and_save_records_audit_events(tmp_path):
         "task_completed",
     ]
     assert events[-1]["details"]["status"] == "success"
+    assert events[-1]["details"]["analysis_mode"] == "rules_only"
+    assert events[-1]["details"]["llm_enabled"] is False
 
 
 def test_export_report_records_audit_event(tmp_path):

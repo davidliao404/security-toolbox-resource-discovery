@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from .analysis import LlmRiskEnricher, apply_analysis
 from .deduplicator import deduplicate_assets, deduplicate_services
 from .fofa_client import FofaApiClient
 from .models import DiscoverySeed, SourceQueryPlan
@@ -32,6 +33,10 @@ def run_discovery(
     source_client: SourceClient | None = None,
     page_limit: int = 10,
     result_limit: int = 1000,
+    analysis_mode: str = "rules_only",
+    llm_enricher: LlmRiskEnricher | None = None,
+    web_search_enabled: bool = False,
+    data_sharing_level: str = "none",
 ) -> dict:
     payload = json.loads(Path(seeds_path).read_text(encoding="utf-8"))
     task_id = payload.get("task_id", "dt_poc_001")
@@ -52,6 +57,10 @@ def run_discovery(
             tenant_id=tenant_id,
             plans=plans,
             client=source_client or FixtureSourceClient(fixture_path),
+            analysis_mode=analysis_mode,
+            llm_enricher=llm_enricher,
+            web_search_enabled=web_search_enabled,
+            data_sharing_level=data_sharing_level,
         )
     if mode == "live":
         if not allow_live_fofa:
@@ -66,6 +75,10 @@ def run_discovery(
                 tenant_id=tenant_id,
                 plans=plans,
                 client=source_client,
+                analysis_mode=analysis_mode,
+                llm_enricher=llm_enricher,
+                web_search_enabled=web_search_enabled,
+                data_sharing_level=data_sharing_level,
             )
         api_client = FofaApiClient(email=fofa_email, key=fofa_key or "", base_url=fofa_base_url)
         return _execute_with_client(
@@ -74,6 +87,10 @@ def run_discovery(
             tenant_id=tenant_id,
             plans=plans,
             client=FofaSourceClient(api_client),
+            analysis_mode=analysis_mode,
+            llm_enricher=llm_enricher,
+            web_search_enabled=web_search_enabled,
+            data_sharing_level=data_sharing_level,
         )
     raise ValueError(f"Unsupported execution mode: {mode}")
 
@@ -97,6 +114,10 @@ def _execute_with_client(
     tenant_id: str,
     plans: list[SourceQueryPlan],
     client: SourceClient,
+    analysis_mode: str = "rules_only",
+    llm_enricher: LlmRiskEnricher | None = None,
+    web_search_enabled: bool = False,
+    data_sharing_level: str = "none",
 ) -> dict:
     assets = []
     services = []
@@ -128,6 +149,13 @@ def _execute_with_client(
     risk_hints = generate_risk_hints(task_id, deduped_services)
     report = build_exposure_report(task_id, tenant_id, deduped_assets, deduped_services, risk_hints)
     risk_hint_dicts = [risk.to_dict() for risk in risk_hints]
+    risk_hint_dicts, analysis = apply_analysis(
+        risk_hint_dicts,
+        analysis_mode=analysis_mode,
+        llm_enricher=llm_enricher,
+        web_search_enabled=web_search_enabled,
+        data_sharing_level=data_sharing_level,
+    )
     remediation = build_remediation_plan(risk_hint_dicts)
 
     task = build_task_envelope(
@@ -142,6 +170,7 @@ def _execute_with_client(
     payload = {
         "mode": mode,
         "live_api_enabled": mode == "live",
+        "analysis": analysis,
         "task": task.to_dict(),
         "report": report.to_dict(),
         "assets": [asset.to_dict() for asset in deduped_assets],

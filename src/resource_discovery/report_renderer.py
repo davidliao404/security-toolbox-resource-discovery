@@ -11,6 +11,7 @@ def render_markdown_report(payload: dict[str, Any]) -> str:
     services = payload.get("services", [])
     risks = payload.get("risk_hints", [])
     remediation = payload.get("remediation", {})
+    analysis = payload.get("analysis", {})
 
     lines = [
         "# 互联网暴露面管理者报告",
@@ -27,6 +28,14 @@ def render_markdown_report(payload: dict[str, Any]) -> str:
         "",
         "所有发现均来自被动资产发现数据，需结合本地验证确认。",
         "",
+        "## 分析来源",
+        "",
+        f"- 分析模式：{_analysis_mode_label(analysis.get('analysis_mode'))}",
+        f"- 规则库分析：已启用",
+        f"- 大模型增强：{_llm_label(analysis)}",
+        f"- 网络搜索：{_enabled_label(analysis.get('web_search_enabled'))}",
+        f"- 数据共享范围：{analysis.get('data_sharing_level', 'none')}",
+        "",
         "## 优先处置建议",
         "",
     ]
@@ -36,8 +45,11 @@ def render_markdown_report(payload: dict[str, Any]) -> str:
     for risk in risks:
         lines.append(
             f"- **{risk['severity']}** {risk['title']}：{risk['manager_summary']} "
-            f"(置信度 {risk['confidence']})"
+            f"(规则置信度 {risk['confidence']}{_analysis_confidence_suffix(risk)})"
         )
+        enrichment = risk.get("llm_enrichment")
+        if enrichment:
+            lines.append(f"  - 大模型补充：{enrichment.get('external_context_summary', '')}")
     lines.extend(["", "## 整改优先级", ""])
     for action in remediation.get("actions", [])[:10]:
         lines.append(
@@ -118,3 +130,27 @@ def _section(report: dict[str, Any], title: str) -> dict[str, Any]:
 
 def _md_cell(value: Any) -> str:
     return str(value or "").replace("|", "\\|").replace("\n", " ")
+
+
+def _analysis_mode_label(mode: Any) -> str:
+    if mode == "rules_plus_llm":
+        return "规则库 + 大模型增强"
+    return "规则库"
+
+
+def _llm_label(analysis: dict[str, Any]) -> str:
+    if not analysis.get("llm_enabled"):
+        return "未启用"
+    provider = analysis.get("provider") or "unknown"
+    model = analysis.get("model") or "unknown"
+    return f"{provider} / {model}"
+
+
+def _enabled_label(value: Any) -> str:
+    return "启用" if value else "未启用"
+
+
+def _analysis_confidence_suffix(risk: dict[str, Any]) -> str:
+    if "analysis_confidence" not in risk:
+        return ""
+    return f"，增强后置信度 {risk['analysis_confidence']}"
