@@ -122,3 +122,5 @@
 - `external_context_summary` 会截断到 200 字以内。
 - 非列表类型的 `items` 会按空结果处理。
 - 规则置信度不会被覆盖，只新增 `analysis_confidence`。
+
+启用大模型增强时，CLI 审计日志会额外写入 `llm_analysis_used` 事件，记录模型供应商、模型名称、网络搜索开关和数据共享范围。

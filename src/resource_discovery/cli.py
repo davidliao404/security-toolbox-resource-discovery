@@ -57,6 +57,7 @@ def run_and_maybe_save(
         saved_path = FileTaskStore(save_dir).save(payload)
         payload = {**payload, "saved_snapshot_path": _display_path(saved_path)}
         _record(audit_logger, payload, "snapshot_saved", {"path": _display_path(saved_path)})
+    _record_llm_analysis(audit_logger, payload)
     _record(
         audit_logger,
         payload,
@@ -229,6 +230,23 @@ def _record(logger, payload: dict, event_type: str, details: dict) -> None:
             task_id=task.get("task_id", "unknown"),
             details=details,
         )
+    )
+
+
+def _record_llm_analysis(logger, payload: dict) -> None:
+    analysis = payload.get("analysis", {})
+    if not analysis.get("llm_enabled"):
+        return
+    _record(
+        logger,
+        payload,
+        "llm_analysis_used",
+        {
+            "provider": analysis.get("provider"),
+            "model": analysis.get("model"),
+            "web_search_enabled": analysis.get("web_search_enabled"),
+            "data_sharing_level": analysis.get("data_sharing_level"),
+        },
     )
 
 

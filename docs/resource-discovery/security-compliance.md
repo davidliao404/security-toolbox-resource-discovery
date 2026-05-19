@@ -189,6 +189,13 @@ MVP 至少需要：
 - 网络搜索开关。
 - 数据共享范围。
 
+当启用大模型增强时，必须额外记录 `llm_analysis_used` 事件，字段包括：
+
+- `provider`
+- `model`
+- `web_search_enabled`
+- `data_sharing_level`
+
 ## 10. 合规边界
 
 ### 10.1 香港区域
