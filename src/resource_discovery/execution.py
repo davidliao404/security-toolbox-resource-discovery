@@ -30,13 +30,15 @@ def run_discovery(
     fofa_base_url: str = "https://fofa.info/api/v1/search/all",
     allow_live_fofa: bool = False,
     source_client: SourceClient | None = None,
+    page_limit: int = 10,
+    result_limit: int = 1000,
 ) -> dict:
     payload = json.loads(Path(seeds_path).read_text(encoding="utf-8"))
     task_id = payload.get("task_id", "dt_poc_001")
     tenant_id = payload.get("tenant_id", "tenant_poc")
     seeds = [DiscoverySeed(**seed) for seed in payload["seeds"]]
     validate_seeds(seeds)
-    plans = plan_fofa_queries(task_id, seeds)
+    plans = plan_fofa_queries(task_id, seeds, page_limit=page_limit, result_limit=result_limit)
     enforce_plan_quota(plans)
 
     if mode == "dry-run":

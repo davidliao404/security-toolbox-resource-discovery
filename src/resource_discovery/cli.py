@@ -25,6 +25,8 @@ def run_and_maybe_save(
     allow_live_fofa=False,
     save_dir=None,
     audit_log=None,
+    page_limit=10,
+    result_limit=1000,
 ) -> dict:
     audit_logger = JsonlAuditLogger(audit_log) if audit_log is not None else None
     payload = run_discovery(
@@ -35,6 +37,8 @@ def run_and_maybe_save(
         fofa_key=fofa_key,
         fofa_base_url=fofa_base_url or "https://fofa.info/api/v1/search/all",
         allow_live_fofa=allow_live_fofa,
+        page_limit=page_limit,
+        result_limit=result_limit,
     )
     _record(audit_logger, payload, "task_started", {"mode": mode})
     if save_dir is not None:
@@ -91,6 +95,8 @@ def main() -> None:
     parser.add_argument("--fofa-key", help="FOFA API key for live mode.")
     parser.add_argument("--fofa-base-url", help="FOFA-compatible search endpoint.")
     parser.add_argument("--allow-live-fofa", action="store_true", help="Explicitly enable live FOFA API calls.")
+    parser.add_argument("--page-limit", type=int, default=10, help="Maximum pages per query plan.")
+    parser.add_argument("--result-limit", type=int, default=1000, help="Maximum results per query plan.")
     parser.add_argument("--save-dir", help="Directory for persisted task snapshots.")
     parser.add_argument("--list-snapshots", action="store_true", help="List persisted task snapshot summaries.")
     parser.add_argument("--show-snapshot", help="Load and print a persisted task snapshot by task ID.")
@@ -122,6 +128,8 @@ def main() -> None:
             allow_live_fofa=args.allow_live_fofa,
             save_dir=args.save_dir,
             audit_log=args.audit_log,
+            page_limit=args.page_limit,
+            result_limit=args.result_limit,
         )
     if args.export_report and isinstance(payload, dict) and payload.get("report"):
         saved_report = export_report(payload, args.export_report, args.report_format, audit_log=args.audit_log)

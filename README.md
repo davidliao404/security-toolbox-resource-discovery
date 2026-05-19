@@ -69,7 +69,7 @@ python -m venv .venv
 ```powershell
 $env:FOFA_API_KEY = "<key>"
 $env:FOFA_BASE_URL = "http://fofa.icu/api/v1/search/all"
-.\.venv\Scripts\python.exe -m resource_discovery.cli --mode live --seeds .\artifacts\authorized-seeds.json --allow-live-fofa --save-dir .\artifacts\snapshots --audit-log .\artifacts\audit.jsonl
+.\.venv\Scripts\python.exe -m resource_discovery.cli --mode live --seeds .\artifacts\authorized-seeds.json --allow-live-fofa --page-limit 1 --result-limit 20 --save-dir .\artifacts\snapshots --audit-log .\artifacts\audit.jsonl
 ```
 
 `artifacts/` 已被 Git 忽略，用于保存真实查询快照、报告和审计日志。

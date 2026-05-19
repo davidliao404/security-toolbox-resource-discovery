@@ -182,6 +182,8 @@ $env:FOFA_BASE_URL = "http://fofa.icu/api/v1/search/all"
   --mode live `
   --seeds .\artifacts\authorized-seeds.json `
   --allow-live-fofa `
+  --page-limit 1 `
+  --result-limit 20 `
   --save-dir .\artifacts\snapshots `
   --export-report .\artifacts\reports\authorized-domain.md `
   --audit-log .\artifacts\audit.jsonl
