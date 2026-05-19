@@ -212,3 +212,12 @@ $env:FOFA_BASE_URL = "http://fofa.icu/api/v1/search/all"
 - CLI 执行模式。
 - 快照存储。
 - 审计日志。
+
+## 11. 后续优化 TODO
+
+后续优化集中记录在 `docs/resource-discovery/todo.md`。
+
+当前重要 TODO：
+
+- 将硬编码风险规则迁移为 `risk_rules.yml` 或等价配置。
+- 设计双轨风险分析：默认规则库，客户显式同意时使用轻量提示语 Agent + 支持网络搜索的大模型增强置信度和报告表达。
