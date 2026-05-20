@@ -24,4 +24,5 @@ __all__ = [
     "report_builder",
     "report_renderer",
     "remediation",
+    "repositories",
 ]

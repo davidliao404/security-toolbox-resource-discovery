@@ -6,9 +6,9 @@ from typing import Any
 from .execution import run_discovery_from_seeds
 from .models import DiscoverySeed
 from .query_planner import plan_fofa_queries
+from .repositories import FileResultRepository, FileTaskRepository, ResultRepository, TaskRepository
 from .scope_guard import TenantScopeProfile, validate_requested_scope
 from .source_client import SourceClient
-from .task_store import FileTaskStore
 
 
 class DiscoveryGatewayApi:
@@ -16,11 +16,19 @@ class DiscoveryGatewayApi:
         self,
         profile: TenantScopeProfile,
         source_client: SourceClient,
-        snapshot_dir: str | Path,
+        snapshot_dir: str | Path | None = None,
+        task_repository: TaskRepository | None = None,
+        result_repository: ResultRepository | None = None,
     ) -> None:
         self.profile = profile
         self.source_client = source_client
-        self.store = FileTaskStore(snapshot_dir)
+        if task_repository is None or result_repository is None:
+            if snapshot_dir is None:
+                raise ValueError("snapshot_dir is required when repositories are not provided")
+            task_repository = task_repository or FileTaskRepository(snapshot_dir)
+            result_repository = result_repository or FileResultRepository(Path(snapshot_dir) / "results")
+        self.task_repository = task_repository
+        self.result_repository = result_repository
 
     def get_scope_profile(self) -> dict[str, Any]:
         return self.profile.to_toolbox_summary()
@@ -60,7 +68,8 @@ class DiscoveryGatewayApi:
             page_limit=1,
             result_limit=result_limit,
         )
-        self.store.save(payload)
+        self.task_repository.create(payload)
+        self.result_repository.save_results(self.profile.tenant_id, task_id, payload)
         return {
             "task_id": task_id,
             "status": _status_value(payload["task"]["status"]),
@@ -75,7 +84,7 @@ class DiscoveryGatewayApi:
         }
 
     def get_task(self, task_id: str) -> dict[str, Any]:
-        payload = self.store.load(self.profile.tenant_id, task_id)
+        payload = self.task_repository.load(self.profile.tenant_id, task_id)
         task = payload["task"]
         return {
             "task_id": task["task_id"],
@@ -92,18 +101,7 @@ class DiscoveryGatewayApi:
         }
 
     def get_results(self, task_id: str, cursor: str | None = None, limit: int = 100) -> dict[str, Any]:
-        payload = self.store.load(self.profile.tenant_id, task_id)
-        start = int(cursor or 0)
-        end = start + limit
-        assets = payload.get("assets", [])[start:end]
-        next_cursor = str(end) if end < len(payload.get("assets", [])) else None
-        return {
-            "task_id": task_id,
-            "assets": assets,
-            "services": payload.get("services", []),
-            "source_evidence": payload.get("source_evidence", []),
-            "page": {"next_cursor": next_cursor},
-        }
+        return self.result_repository.load_results(self.profile.tenant_id, task_id, cursor, limit)
 
 
 def _seeds_from_scope(scope: dict[str, list[str]], authorization_note: str | None) -> list[DiscoverySeed]:

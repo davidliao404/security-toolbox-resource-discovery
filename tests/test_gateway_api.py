@@ -1,4 +1,5 @@
 from resource_discovery.gateway_api import DiscoveryGatewayApi
+from resource_discovery.repositories import FileResultRepository, FileTaskRepository
 from resource_discovery.scope_guard import TenantScopeProfile
 from resource_discovery.source_client import FixtureSourceClient
 from resource_discovery.uncover_client import FixtureUncoverSourceClient
@@ -118,3 +119,25 @@ def test_gateway_api_can_use_uncover_fixture_client(tmp_path):
     assert created["status"] == "success"
     assert results["services"][0]["freshness"]["status"] == "fresh"
     assert results["services"][1]["freshness"]["status"] == "stale"
+
+
+def test_gateway_api_can_use_repository_abstractions(tmp_path):
+    api = DiscoveryGatewayApi(
+        profile=_profile(),
+        source_client=FixtureSourceClient("tests/fixtures/fofa_results.json"),
+        task_repository=FileTaskRepository(tmp_path / "tasks"),
+        result_repository=FileResultRepository(tmp_path / "results"),
+    )
+
+    created = api.create_task(
+        {
+            "profile_id": "scope_profile_001",
+            "requested_scope": {"root_domains": ["example.org"]},
+            "engines": ["fofa"],
+            "result_limit": 50,
+            "purpose": "toolbox_asset_discovery",
+        }
+    )
+
+    assert api.get_task(created["task_id"])["status"] == "success"
+    assert api.get_results(created["task_id"], limit=1)["page"]["next_cursor"] == "1"
