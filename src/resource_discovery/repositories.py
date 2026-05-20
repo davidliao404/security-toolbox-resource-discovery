@@ -60,8 +60,9 @@ class FileTaskRepository:
 
 
 class FileResultRepository:
-    def __init__(self, base_dir: str | Path) -> None:
+    def __init__(self, base_dir: str | Path, max_page_limit: int = 500) -> None:
         self.base_dir = Path(base_dir)
+        self.max_page_limit = max_page_limit
 
     def save_results(self, tenant_id: str, task_id: str, payload: dict[str, Any]) -> None:
         path = self._result_path(tenant_id, task_id)
@@ -86,8 +87,9 @@ class FileResultRepository:
         payload = json.loads(path.read_text(encoding="utf-8"))
         if result_type not in {"assets", "services", "source_evidence"}:
             raise ValueError(f"Unsupported result_type: {result_type}")
-        start = int(cursor or 0)
-        end = start + limit
+        start = _parse_cursor(cursor)
+        effective_limit = max(1, min(limit, self.max_page_limit))
+        end = start + effective_limit
         items = payload.get(result_type, [])
         next_cursor = str(end) if end < len(items) else None
         return {
@@ -95,11 +97,23 @@ class FileResultRepository:
             "assets": items[start:end] if result_type == "assets" else [],
             "services": items[start:end] if result_type == "services" else [],
             "source_evidence": items[start:end] if result_type == "source_evidence" else [],
-            "page": {"next_cursor": next_cursor, "limit": limit, "type": result_type},
+            "page": {"next_cursor": next_cursor, "limit": effective_limit, "type": result_type},
         }
 
     def _result_path(self, tenant_id: str, task_id: str) -> Path:
         return self.base_dir / _safe_id(tenant_id, "tenant_id") / f"{_safe_id(task_id, 'task_id')}.json"
+
+
+def _parse_cursor(cursor: str | None) -> int:
+    if cursor is None or cursor == "":
+        return 0
+    try:
+        value = int(cursor)
+    except ValueError:
+        raise ValueError(f"Invalid cursor: {cursor}") from None
+    if value < 0:
+        raise ValueError(f"Invalid cursor: {cursor}")
+    return value
 
 
 class FileScopeProfileRepository:
