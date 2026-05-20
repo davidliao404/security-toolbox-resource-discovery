@@ -28,6 +28,7 @@
 
 - `docs/resource-discovery/toolbox-api-contract.md`
 - `docs/resource-discovery/toolbox-handoff.md`
+- `docs/resource-discovery/production-readiness-checklist.md`
 
 ## 本地运行
 
