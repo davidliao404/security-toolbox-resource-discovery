@@ -21,6 +21,10 @@
 - 支持 uncover FOFA JSONL fixture 和 sidecar 命令客户端，POC 阶段只启用 FOFA。
 - 支持测绘情报 freshness 标注，区分 `fresh`、`aging`、`stale`、`unknown`，但不把陈旧情报等同于资产已下线。
 
+安全工具箱 API 契约见：
+
+- `docs/resource-discovery/toolbox-api-contract.md`
+
 ## 本地运行
 
 创建虚拟环境并安装测试依赖：
