@@ -3,8 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from .audit import AuditEvent, AuditLogger
 from .errors import profile_id_mismatch_error, scope_out_of_bounds_error
-from .execution import run_discovery_from_seeds
 from .models import DiscoverySeed
 from .query_planner import plan_fofa_queries
 from .repositories import FileResultRepository, FileTaskRepository, ResultRepository, TaskRepository
@@ -22,6 +22,7 @@ class DiscoveryGatewayApi:
         task_repository: TaskRepository | None = None,
         result_repository: ResultRepository | None = None,
         queue: InMemoryTaskQueue | None = None,
+        audit_logger: AuditLogger | None = None,
     ) -> None:
         self.profile = profile
         self.source_client = source_client
@@ -33,21 +34,49 @@ class DiscoveryGatewayApi:
         self.task_repository = task_repository
         self.result_repository = result_repository
         self.queue = queue if queue is not None else InMemoryTaskQueue()
+        self.audit_logger = audit_logger
 
     def get_scope_profile(self) -> dict[str, Any]:
+        self._record(
+            "scope_profile_viewed",
+            "-",
+            {
+                "profile_id": self.profile.profile_id,
+                "allowed_engines": self.profile.allowed_engines,
+            },
+        )
         return self.profile.to_toolbox_summary()
 
     def create_task(self, request: dict[str, Any]) -> dict[str, Any]:
+        task_id = request.get("task_id") or "dt_api_001"
+        engines = request.get("engines") or ["fofa"]
+        result_limit = int(request.get("result_limit", self.profile.limits.get("max_results_per_task", 100)))
+        self._record(
+            "discovery_task_requested",
+            task_id,
+            {
+                "profile_id": request.get("profile_id"),
+                "engines": engines,
+                "requested_scope_keys": sorted((request.get("requested_scope") or {}).keys()),
+                "result_limit": result_limit,
+            },
+        )
         if request.get("profile_id") != self.profile.profile_id:
             error = profile_id_mismatch_error(self.profile.profile_id, request.get("profile_id"))
+            self._record(
+                "discovery_scope_rejected",
+                task_id,
+                {
+                    "reason": "profile_id_mismatch",
+                    "rejected_count": 0,
+                },
+            )
             return {
                 "status": "rejected",
                 "accepted_scope": {},
                 "rejected_scope": [],
                 "errors": [error.to_dict()],
             }
-        engines = request.get("engines") or ["fofa"]
-        result_limit = int(request.get("result_limit", self.profile.limits.get("max_results_per_task", 100)))
         scope_result = validate_requested_scope(
             self.profile,
             request.get("requested_scope") or {},
@@ -56,6 +85,14 @@ class DiscoveryGatewayApi:
         )
         if scope_result.rejected_scope:
             error = scope_out_of_bounds_error(self.profile.profile_id, scope_result.rejected_scope)
+            self._record(
+                "discovery_scope_rejected",
+                task_id,
+                {
+                    "reason": "scope_out_of_bounds",
+                    "rejected_count": len(scope_result.rejected_scope),
+                },
+            )
             return {
                 "status": "rejected",
                 "accepted_scope": scope_result.accepted_scope,
@@ -63,7 +100,6 @@ class DiscoveryGatewayApi:
                 "errors": [error.to_dict()],
             }
 
-        task_id = request.get("task_id") or "dt_api_001"
         seeds = seeds_from_scope(scope_result.accepted_scope, self.profile.authorization_note)
         plans = plan_fofa_queries(task_id, seeds, page_limit=1, result_limit=result_limit)
         payload = _queued_task_payload(
@@ -76,6 +112,14 @@ class DiscoveryGatewayApi:
         )
         self.task_repository.create(payload)
         self.queue.enqueue(TaskWorkItem(tenant_id=self.profile.tenant_id, task_id=task_id))
+        self._record(
+            "discovery_task_queued",
+            task_id,
+            {
+                "accepted_scope_keys": sorted(scope_result.accepted_scope.keys()),
+                "planned_queries": len(plans),
+            },
+        )
         return {
             "task_id": task_id,
             "status": "queued",
@@ -113,12 +157,34 @@ class DiscoveryGatewayApi:
         limit: int = 100,
         result_type: str = "assets",
     ) -> dict[str, Any]:
-        return self.result_repository.load_results(
+        payload = self.result_repository.load_results(
             self.profile.tenant_id,
             task_id,
             cursor,
             limit,
             result_type=result_type,
+        )
+        self._record(
+            "discovery_results_fetched",
+            task_id,
+            {
+                "result_type": result_type,
+                "cursor": cursor,
+                "limit": limit,
+            },
+        )
+        return payload
+
+    def _record(self, event_type: str, task_id: str, details: dict[str, Any]) -> None:
+        if self.audit_logger is None:
+            return
+        self.audit_logger.record(
+            AuditEvent(
+                event_type=event_type,
+                tenant_id=self.profile.tenant_id,
+                task_id=task_id,
+                details=details,
+            )
         )
 
 

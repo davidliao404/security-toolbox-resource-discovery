@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from .audit import AuditEvent, AuditLogger
 from .execution import run_discovery_from_seeds
 from .gateway_api import seeds_from_scope
 from .repositories import ResultRepository, TaskRepository
@@ -16,11 +17,13 @@ class TaskWorker:
         result_repository: ResultRepository,
         queue: InMemoryTaskQueue,
         source_client: SourceClient,
+        audit_logger: AuditLogger | None = None,
     ) -> None:
         self.task_repository = task_repository
         self.result_repository = result_repository
         self.queue = queue
         self.source_client = source_client
+        self.audit_logger = audit_logger
 
     def run_once(self) -> dict[str, Any]:
         item = self.queue.dequeue()
@@ -29,6 +32,7 @@ class TaskWorker:
         task_payload = self.task_repository.load(item.tenant_id, item.task_id)
         self._mark_status(task_payload, "running")
         self.task_repository.update(task_payload)
+        self._record("discovery_task_started", item.tenant_id, item.task_id, {})
         try:
             result_payload = self._execute(task_payload)
         except Exception as exc:
@@ -43,9 +47,24 @@ class TaskWorker:
                 }
             ]
             self.task_repository.update(task_payload)
+            self._record(
+                "discovery_task_failed",
+                item.tenant_id,
+                item.task_id,
+                {"message": str(exc), "recoverable": True},
+            )
             return {"processed": True, "task_id": item.task_id, "status": "failed"}
         self.task_repository.update(result_payload)
         self.result_repository.save_results(item.tenant_id, item.task_id, result_payload)
+        self._record(
+            "discovery_task_completed",
+            item.tenant_id,
+            item.task_id,
+            {
+                "status": result_payload["task"]["status"],
+                "result_count": result_payload["task"].get("quota_usage", {}).get("result_count", 0),
+            },
+        )
         return {
             "processed": True,
             "task_id": item.task_id,
@@ -71,3 +90,15 @@ class TaskWorker:
 
     def _mark_status(self, task_payload: dict[str, Any], status: str) -> None:
         task_payload["task"]["status"] = status
+
+    def _record(self, event_type: str, tenant_id: str, task_id: str, details: dict[str, Any]) -> None:
+        if self.audit_logger is None:
+            return
+        self.audit_logger.record(
+            AuditEvent(
+                event_type=event_type,
+                tenant_id=tenant_id,
+                task_id=task_id,
+                details=details,
+            )
+        )

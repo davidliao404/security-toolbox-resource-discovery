@@ -4,7 +4,7 @@ import json
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol
 
 
 @dataclass(frozen=True)
@@ -24,3 +24,8 @@ class JsonlAuditLogger:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with self.path.open("a", encoding="utf-8") as handle:
             handle.write(json.dumps(asdict(event), ensure_ascii=False, sort_keys=True) + "\n")
+
+
+class AuditLogger(Protocol):
+    def record(self, event: AuditEvent) -> None:
+        """Record one audit event."""
