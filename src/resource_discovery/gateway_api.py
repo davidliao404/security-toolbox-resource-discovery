@@ -61,7 +61,7 @@ class DiscoveryGatewayApi:
             }
 
         task_id = request.get("task_id") or "dt_api_001"
-        seeds = _seeds_from_scope(scope_result.accepted_scope, self.profile.authorization_note)
+        seeds = seeds_from_scope(scope_result.accepted_scope, self.profile.authorization_note)
         plans = plan_fofa_queries(task_id, seeds, page_limit=1, result_limit=result_limit)
         payload = run_discovery_from_seeds(
             task_id=task_id,
@@ -108,7 +108,7 @@ class DiscoveryGatewayApi:
         return self.result_repository.load_results(self.profile.tenant_id, task_id, cursor, limit)
 
 
-def _seeds_from_scope(scope: dict[str, list[str]], authorization_note: str | None) -> list[DiscoverySeed]:
+def seeds_from_scope(scope: dict[str, list[str]], authorization_note: str | None) -> list[DiscoverySeed]:
     seeds: list[DiscoverySeed] = []
     for value in scope.get("root_domains", []):
         seeds.append(_seed(len(seeds) + 1, "root_domain", value, authorization_note))
