@@ -1,0 +1,20 @@
+{
+  "tenant_id": "tenant_poc",
+  "profile_id": "scope_profile_001",
+  "status": "active",
+  "allowed_root_domains": ["example.org"],
+  "allowed_domains": ["vpn.example.org"],
+  "allowed_ip_cidrs": ["203.0.113.0/24"],
+  "allowed_org_names": ["Example Organization"],
+  "default_scope": {
+    "root_domains": ["example.org"]
+  },
+  "allowed_engines": ["fofa"],
+  "provider_profile_id": "provider_fofa_poc",
+  "limits": {
+    "max_results_per_task": 100,
+    "max_queries_per_task": 10
+  },
+  "created_by": "security_operator_hash",
+  "authorization_note": "Customer interview confirmed ownership."
+}

@@ -110,6 +110,10 @@ class FileScopeProfileRepository:
         path = self.base_dir / f"{_safe_id(tenant_id, 'tenant_id')}.{_safe_id(profile_id, 'profile_id')}.json"
         payload = json.loads(path.read_text(encoding="utf-8"))
         profile = TenantScopeProfile(**payload)
+        if profile.tenant_id != tenant_id:
+            raise ValueError(f"Scope profile tenant does not match requested tenant: {tenant_id}")
+        if profile.profile_id != profile_id:
+            raise ValueError(f"Scope profile ID does not match requested profile: {profile_id}")
         if profile.status != "active":
             raise ValueError(f"Scope profile is not active: {profile_id}")
         return profile
