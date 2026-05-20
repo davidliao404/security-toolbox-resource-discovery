@@ -1,0 +1,2 @@
+{"ip":"203.0.113.10","port":"443","host":"vpn.example.org","source":"fofa","timestamp":"2026-05-19 12:00:00","matched_query_types":["domain"]}
+{"ip":"203.0.113.20","port":"8443","host":"admin.example.org","source":"fofa","timestamp":"2025-08-01 10:00:00","matched_query_types":["domain"]}

@@ -4,6 +4,7 @@ import hashlib
 from dataclasses import dataclass
 from typing import Any
 
+from .freshness import build_freshness
 from .models import DiscoveredAsset, ExposedService, SourceEvidence, SourceQueryPlan
 
 
@@ -34,7 +35,8 @@ def normalize_fofa_results(task_id: str, plan: SourceQueryPlan, rows: list[dict]
         port = int(row.get("port") or 0)
         protocol = (row.get("protocol") or "unknown").lower()
         service_name = (row.get("service") or row.get("product") or protocol or "unknown").lower()
-        seen_at = row.get("last_seen") or DEFAULT_SEEN_AT
+        seen_at = row.get("last_seen") or row.get("lastupdatetime") or DEFAULT_SEEN_AT
+        freshness = build_freshness(row.get("lastupdatetime") or row.get("last_seen"))
 
         asset_id = _stable_id("asset", task_id, domain or ip)
         service_id = _stable_id("svc", task_id, domain or ip, port, protocol, service_name)
@@ -65,6 +67,7 @@ def normalize_fofa_results(task_id: str, plan: SourceQueryPlan, rows: list[dict]
                         "protocol": protocol,
                         "title": row.get("title"),
                         "product": row.get("product"),
+                        "freshness": freshness,
                     }.items()
                     if value not in (None, "")
                 },
@@ -108,6 +111,7 @@ def normalize_fofa_results(task_id: str, plan: SourceQueryPlan, rows: list[dict]
                 tls=row.get("tls"),
                 first_seen=row.get("first_seen") or seen_at,
                 last_seen=seen_at,
+                freshness=freshness,
                 sources=[plan.source],
                 evidence_ids=[evidence_id],
             )

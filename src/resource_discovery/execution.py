@@ -46,6 +46,53 @@ def run_discovery(
     payload = json.loads(Path(seeds_path).read_text(encoding="utf-8"))
     task_id = payload.get("task_id", "dt_poc_001")
     tenant_id = payload.get("tenant_id", "tenant_poc")
+    seeds = [DiscoverySeed(**seed) for seed in payload["seeds"]]
+    return run_discovery_from_seeds(
+        task_id=task_id,
+        tenant_id=tenant_id,
+        seeds=seeds,
+        mode=mode,
+        fixture_path=fixture_path,
+        fofa_email=fofa_email,
+        fofa_key=fofa_key,
+        fofa_base_url=fofa_base_url,
+        allow_live_fofa=allow_live_fofa,
+        source_client=source_client,
+        page_limit=page_limit,
+        result_limit=result_limit,
+        analysis_mode=analysis_mode,
+        llm_enricher=llm_enricher,
+        web_search_enabled=web_search_enabled,
+        data_sharing_level=data_sharing_level,
+        llm_provider=llm_provider,
+        llm_model=llm_model,
+        llm_authorization_id=llm_authorization_id,
+        tenant_analysis_config=tenant_analysis_config,
+    )
+
+
+def run_discovery_from_seeds(
+    task_id: str,
+    tenant_id: str,
+    seeds: list[DiscoverySeed],
+    mode: str = "fixture",
+    fixture_path: str | Path | None = None,
+    fofa_email: str | None = None,
+    fofa_key: str | None = None,
+    fofa_base_url: str = "https://fofa.info/api/v1/search/all",
+    allow_live_fofa: bool = False,
+    source_client: SourceClient | None = None,
+    page_limit: int = 10,
+    result_limit: int = 1000,
+    analysis_mode: str = "rules_only",
+    llm_enricher: LlmRiskEnricher | None = None,
+    web_search_enabled: bool = False,
+    data_sharing_level: str = "none",
+    llm_provider: str | None = None,
+    llm_model: str | None = None,
+    llm_authorization_id: str | None = None,
+    tenant_analysis_config: TenantAnalysisConfig | None = None,
+) -> dict:
     analysis_options = _resolve_analysis_options(
         tenant_id=tenant_id,
         analysis_mode=analysis_mode,
@@ -56,7 +103,6 @@ def run_discovery(
         llm_authorization_id=llm_authorization_id,
         tenant_analysis_config=tenant_analysis_config,
     )
-    seeds = [DiscoverySeed(**seed) for seed in payload["seeds"]]
     validate_seeds(seeds)
     plans = plan_fofa_queries(task_id, seeds, page_limit=page_limit, result_limit=result_limit)
     enforce_plan_quota(plans)
@@ -64,7 +110,7 @@ def run_discovery(
     if mode == "dry-run":
         return _dry_run_payload(plans)
     if mode == "fixture":
-        if fixture_path is None:
+        if fixture_path is None and source_client is None:
             raise ValueError("fixture_path is required in fixture mode")
         return _execute_with_client(
             mode=mode,

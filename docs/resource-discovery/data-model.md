@@ -99,6 +99,71 @@ MVP 必做：`root_domain`、`organization_name`、`ip_cidr`。
 - 用户原始输入和供应商查询语法必须分开保存。
 - 查询计划不得包含 SaaS 密钥。
 
+## 4.1 租户范围配置模型 `TenantScopeProfile`
+
+```json
+{
+  "tenant_id": "tenant_001",
+  "profile_id": "scope_profile_001",
+  "status": "active",
+  "allowed_root_domains": ["example.com"],
+  "allowed_domains": ["vpn.example.com"],
+  "allowed_ip_cidrs": ["203.0.113.0/24"],
+  "allowed_org_names": ["Example Limited"],
+  "default_scope": {
+    "root_domains": ["example.com"]
+  },
+  "allowed_engines": ["fofa"],
+  "provider_profile_id": "provider_fofa_hk_001",
+  "limits": {
+    "max_results_per_task": 200,
+    "max_queries_per_task": 10
+  },
+  "created_by": "security_operator_hash",
+  "authorization_note": "Customer interview confirmed ownership."
+}
+```
+
+用途：
+
+- 由安全人员在网关后台录入。
+- 约束客户在安全工具箱中可发起的探测范围。
+- 客户请求只能缩小该范围，不能扩大。
+- `default_scope` 由安全人员明确配置，客户不填范围时使用它。
+
+## 4.2 工具箱任务 API 结果模型
+
+创建任务返回：
+
+```json
+{
+  "task_id": "dt_20260520_000001",
+  "status": "success",
+  "accepted_scope": {},
+  "rejected_scope": [],
+  "query_plan_summary": {
+    "engines": ["fofa"],
+    "planned_queries": 3
+  },
+  "status_url": "/api/v1/discovery/tasks/dt_20260520_000001",
+  "result_url": "/api/v1/discovery/tasks/dt_20260520_000001/results"
+}
+```
+
+拉取结果返回：
+
+```json
+{
+  "task_id": "dt_20260520_000001",
+  "assets": [],
+  "services": [],
+  "source_evidence": [],
+  "page": {
+    "next_cursor": null
+  }
+}
+```
+
 ## 5. 资产模型 `DiscoveredAsset`
 
 ```json
@@ -159,7 +224,14 @@ MVP 必做：`root_domain`、`organization_name`、`ip_cidr`。
     "not_after": "2026-12-31T23:59:59+08:00"
   },
   "first_seen": "2026-05-17T10:03:00+08:00",
-  "last_seen": "2026-05-17T10:03:00+08:00"
+  "last_seen": "2026-05-17T10:03:00+08:00",
+  "freshness": {
+    "status": "fresh",
+    "last_observed_at": "2026-05-17T10:03:00+00:00",
+    "age_days": 3,
+    "stale_after_days": 180,
+    "meaning": "provider_observation_time_not_liveness_proof"
+  }
 }
 ```
 

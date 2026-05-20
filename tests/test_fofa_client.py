@@ -5,6 +5,8 @@ from urllib.parse import parse_qs, urlparse
 import pytest
 
 from resource_discovery.fofa_client import FofaApiClient, FofaApiError
+from resource_discovery.models import SourceQueryPlan
+from resource_discovery.source_client import FofaSourceClient
 
 
 class FakeResponse:
@@ -87,3 +89,28 @@ def test_fetch_search_raises_provider_error():
 
     with pytest.raises(FofaApiError, match="invalid key"):
         client.search('domain="example.org"', fields=["host"])
+
+
+def test_fofa_source_client_requests_last_update_time_by_default():
+    class FakeApiClient:
+        def __init__(self):
+            self.fields = None
+
+        def search(self, query, fields, page, size):
+            self.fields = fields
+            return []
+
+    api_client = FakeApiClient()
+    client = FofaSourceClient(api_client)
+    plan = SourceQueryPlan(
+        plan_id="plan_001",
+        task_id="dt_001",
+        source="fofa",
+        seed_id="seed_001",
+        source_query='domain="example.org"',
+        query_type="domain",
+    )
+
+    client.fetch(plan)
+
+    assert "lastupdatetime" in api_client.fields

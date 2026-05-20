@@ -127,6 +127,7 @@ class ExposedService(Serializable):
     tls: dict[str, Any] | None = None
     first_seen: str | None = None
     last_seen: str | None = None
+    freshness: dict[str, Any] | None = None
     sources: list[str] = field(default_factory=list)
     evidence_ids: list[str] = field(default_factory=list)
 

@@ -37,6 +37,7 @@ class FofaSourceClient:
         "title",
         "product",
         "link",
+        "lastupdatetime",
     ]
 
     def __init__(self, api_client: FofaApiClient, fields: list[str] | None = None) -> None:
