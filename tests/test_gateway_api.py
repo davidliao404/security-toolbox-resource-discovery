@@ -67,6 +67,30 @@ def test_create_discovery_task_queues_with_accepted_scope(tmp_path):
     assert len(queue) == 1
 
 
+def test_create_discovery_task_generates_unique_task_ids(tmp_path):
+    queue = InMemoryTaskQueue()
+    api = DiscoveryGatewayApi(
+        profile=_profile(),
+        source_client=FixtureSourceClient("tests/fixtures/fofa_results.json"),
+        snapshot_dir=tmp_path,
+        queue=queue,
+    )
+    request = {
+        "profile_id": "scope_profile_001",
+        "requested_scope": {"domains": ["vpn.example.org"]},
+        "engines": ["fofa"],
+        "result_limit": 50,
+        "purpose": "toolbox_asset_discovery",
+    }
+
+    first = api.create_task(request)
+    second = api.create_task(request)
+
+    assert first["task_id"] != second["task_id"]
+    assert first["task_id"].startswith("dt_")
+    assert second["task_id"].startswith("dt_")
+
+
 def test_create_discovery_task_rejects_out_of_scope_values(tmp_path):
     response = _api(tmp_path).create_task(
         {

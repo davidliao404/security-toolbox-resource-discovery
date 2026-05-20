@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 from .audit import AuditEvent, AuditLogger
 from .errors import profile_id_mismatch_error, scope_out_of_bounds_error
@@ -48,7 +49,7 @@ class DiscoveryGatewayApi:
         return self.profile.to_toolbox_summary()
 
     def create_task(self, request: dict[str, Any]) -> dict[str, Any]:
-        task_id = request.get("task_id") or "dt_api_001"
+        task_id = request.get("task_id") or _generate_task_id()
         engines = request.get("engines") or ["fofa"]
         result_limit = int(request.get("result_limit", self.profile.limits.get("max_results_per_task", 100)))
         self._record(
@@ -212,6 +213,10 @@ def _seed(index: int, seed_type: str, value: str, authorization_note: str | None
 
 def _status_value(status: Any) -> str:
     return getattr(status, "value", status)
+
+
+def _generate_task_id() -> str:
+    return f"dt_{uuid4().hex[:16]}"
 
 
 def _queued_task_payload(
