@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from resource_discovery.execution import run_discovery
+from resource_discovery.fofa_client import FofaApiError
 from resource_discovery.models import TaskStatus
 from resource_discovery.task_state import build_report_snapshot
 
@@ -59,6 +60,29 @@ def test_partial_provider_failure_returns_partial_success_envelope():
     assert "provider timeout" in task["errors"][0]["message"]
     assert payload["assets"]
     assert payload["report"]["executive_summary"]["asset_count"] == 1
+
+
+class CodedFailingClient:
+    def fetch(self, plan):
+        raise FofaApiError(
+            "rate limit exceeded",
+            code="provider_rate_limited",
+            recoverable=True,
+        )
+
+
+def test_provider_error_code_is_preserved_in_task_errors():
+    payload = run_discovery(
+        seeds_path="examples/seeds.json",
+        mode="fixture",
+        fixture_path="tests/fixtures/fofa_results.json",
+        source_client=CodedFailingClient(),
+    )
+
+    task = payload["task"]
+    assert task["status"] == TaskStatus.FAILED.value
+    assert task["errors"][0]["code"] == "provider_rate_limited"
+    assert task["errors"][0]["recoverable"] is True
 
 
 def test_report_snapshot_is_json_serializable_and_contains_task_summary():

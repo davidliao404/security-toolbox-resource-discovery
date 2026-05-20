@@ -118,7 +118,8 @@
 - [x] 范围越权和 profile mismatch 返回结构化错误。
 - [x] FOFA 原生错误映射到 `provider_auth_failed`、`provider_rate_limited`、`provider_timeout`、`provider_bad_response`。
 - [x] uncover sidecar 超时、非零退出和坏 JSONL 已转换为可解释错误或可降级解析。
-- [ ] worker 失败时保留可恢复标识和重试建议。
+- [x] 执行层任务错误保留供应商标准 `code` 和 `recoverable` 标识。
+- [ ] worker 失败时补充更完整的重试建议和调度策略。
 - [ ] 对工具箱返回错误不包含供应商原始敏感响应。
 
 ## 13. 观测与告警

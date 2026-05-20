@@ -207,7 +207,8 @@ def _execute_with_client(
                     query_type=plan.query_type,
                     source_query=plan.source_query,
                     message=str(exc),
-                    recoverable=True,
+                    recoverable=getattr(exc, "recoverable", True),
+                    code=getattr(exc, "code", None),
                 )
             )
             continue

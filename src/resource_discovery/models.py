@@ -66,6 +66,7 @@ class TaskError(Serializable):
     source_query: str
     message: str
     recoverable: bool = True
+    code: str | None = None
 
 
 @dataclass(frozen=True)
