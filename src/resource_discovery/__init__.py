@@ -19,6 +19,7 @@ __all__ = [
     "normalizer",
     "prompt_templates",
     "deduplicator",
+    "errors",
     "risk_hints",
     "risk_rules",
     "report_builder",

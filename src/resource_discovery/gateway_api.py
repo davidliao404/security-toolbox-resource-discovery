@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from .errors import profile_id_mismatch_error, scope_out_of_bounds_error
 from .execution import run_discovery_from_seeds
 from .models import DiscoverySeed
 from .query_planner import plan_fofa_queries
@@ -35,11 +36,12 @@ class DiscoveryGatewayApi:
 
     def create_task(self, request: dict[str, Any]) -> dict[str, Any]:
         if request.get("profile_id") != self.profile.profile_id:
+            error = profile_id_mismatch_error(self.profile.profile_id, request.get("profile_id"))
             return {
                 "status": "rejected",
-                "reason": "profile_id_mismatch",
                 "accepted_scope": {},
                 "rejected_scope": [],
+                "errors": [error.to_dict()],
             }
         engines = request.get("engines") or ["fofa"]
         result_limit = int(request.get("result_limit", self.profile.limits.get("max_results_per_task", 100)))
@@ -50,10 +52,12 @@ class DiscoveryGatewayApi:
             result_limit=result_limit,
         )
         if scope_result.rejected_scope:
+            error = scope_out_of_bounds_error(self.profile.profile_id, scope_result.rejected_scope)
             return {
                 "status": "rejected",
                 "accepted_scope": scope_result.accepted_scope,
                 "rejected_scope": scope_result.rejected_scope,
+                "errors": [error.to_dict()],
             }
 
         task_id = request.get("task_id") or "dt_api_001"
