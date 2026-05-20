@@ -32,6 +32,7 @@ class ResultRepository(Protocol):
         task_id: str,
         cursor: str | None,
         limit: int,
+        result_type: str = "assets",
     ) -> dict[str, Any]:
         """Load a paginated result payload."""
 
@@ -79,19 +80,22 @@ class FileResultRepository:
         task_id: str,
         cursor: str | None,
         limit: int,
+        result_type: str = "assets",
     ) -> dict[str, Any]:
         path = self._result_path(tenant_id, task_id)
         payload = json.loads(path.read_text(encoding="utf-8"))
+        if result_type not in {"assets", "services", "source_evidence"}:
+            raise ValueError(f"Unsupported result_type: {result_type}")
         start = int(cursor or 0)
         end = start + limit
-        assets = payload.get("assets", [])
-        next_cursor = str(end) if end < len(assets) else None
+        items = payload.get(result_type, [])
+        next_cursor = str(end) if end < len(items) else None
         return {
             "task_id": task_id,
-            "assets": assets[start:end],
-            "services": payload.get("services", []),
-            "source_evidence": payload.get("source_evidence", []),
-            "page": {"next_cursor": next_cursor, "limit": limit},
+            "assets": items[start:end] if result_type == "assets" else [],
+            "services": items[start:end] if result_type == "services" else [],
+            "source_evidence": items[start:end] if result_type == "source_evidence" else [],
+            "page": {"next_cursor": next_cursor, "limit": limit, "type": result_type},
         }
 
     def _result_path(self, tenant_id: str, task_id: str) -> Path:

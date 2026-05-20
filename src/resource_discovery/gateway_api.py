@@ -106,8 +106,20 @@ class DiscoveryGatewayApi:
             "errors": task.get("errors", []),
         }
 
-    def get_results(self, task_id: str, cursor: str | None = None, limit: int = 100) -> dict[str, Any]:
-        return self.result_repository.load_results(self.profile.tenant_id, task_id, cursor, limit)
+    def get_results(
+        self,
+        task_id: str,
+        cursor: str | None = None,
+        limit: int = 100,
+        result_type: str = "assets",
+    ) -> dict[str, Any]:
+        return self.result_repository.load_results(
+            self.profile.tenant_id,
+            task_id,
+            cursor,
+            limit,
+            result_type=result_type,
+        )
 
 
 def seeds_from_scope(scope: dict[str, list[str]], authorization_note: str | None) -> list[DiscoverySeed]:

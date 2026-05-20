@@ -150,7 +150,7 @@ def test_gateway_api_can_use_uncover_fixture_client(tmp_path):
         queue=queue,
         source_client=FixtureUncoverSourceClient("tests/fixtures/uncover_fofa_results.jsonl"),
     ).run_once()
-    results = api.get_results(created["task_id"])
+    results = api.get_results(created["task_id"], result_type="services")
 
     assert created["status"] == "queued"
     assert results["services"][0]["freshness"]["status"] == "fresh"

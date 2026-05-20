@@ -40,7 +40,7 @@ def test_file_result_repository_saves_and_paginates_results(tmp_path):
     page_2 = repo.load_results("tenant_poc", "dt_poc_001", cursor=page_1["page"]["next_cursor"], limit=2)
 
     assert len(page_1["assets"]) == 2
-    assert page_1["page"] == {"next_cursor": "2", "limit": 2}
+    assert page_1["page"] == {"next_cursor": "2", "limit": 2, "type": "assets"}
     assert page_2["assets"][0]["asset_id"] != page_1["assets"][0]["asset_id"]
     assert "report" not in page_1
 
