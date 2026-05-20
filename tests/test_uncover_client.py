@@ -1,8 +1,12 @@
+import subprocess
+
 from resource_discovery.models import SourceQueryPlan
 from resource_discovery.uncover_client import (
     FixtureUncoverSourceClient,
     UncoverCommandSourceClient,
+    UncoverExecutionError,
     parse_uncover_jsonl,
+    parse_uncover_jsonl_with_stats,
 )
 
 
@@ -109,3 +113,51 @@ def test_uncover_command_source_client_builds_fofa_command_and_parses_output():
         ]
     ]
     assert rows[0]["host"] == "vpn.example.org"
+
+
+def test_uncover_command_source_client_maps_timeout_to_provider_error():
+    def timeout_runner(command):
+        raise subprocess.TimeoutExpired(command, timeout=3)
+
+    client = UncoverCommandSourceClient(
+        provider_config_path="artifacts/uncover/provider-config.yaml",
+        runner=timeout_runner,
+        timeout_seconds=3,
+    )
+
+    try:
+        client.fetch(_plan())
+    except UncoverExecutionError as exc:
+        assert "timed out" in str(exc)
+        assert exc.recoverable is True
+    else:
+        raise AssertionError("Expected uncover timeout to raise provider error")
+
+
+def test_uncover_command_source_client_maps_non_zero_exit_to_provider_error():
+    def failing_runner(command):
+        raise subprocess.CalledProcessError(2, command, stderr="invalid provider config")
+
+    client = UncoverCommandSourceClient(
+        provider_config_path="artifacts/uncover/provider-config.yaml",
+        runner=failing_runner,
+    )
+
+    try:
+        client.fetch(_plan())
+    except UncoverExecutionError as exc:
+        assert "exit code 2" in str(exc)
+        assert "invalid provider config" in str(exc)
+    else:
+        raise AssertionError("Expected uncover failure to raise provider error")
+
+
+def test_parse_uncover_jsonl_skips_invalid_lines_with_parse_error_count():
+    result = parse_uncover_jsonl_with_stats(
+        '{"ip":"203.0.113.10","port":"443","host":"vpn.example.org"}\n'
+        "not-json\n"
+        '{"ip":"203.0.113.20","port":"8443","host":"admin.example.org"}\n'
+    )
+
+    assert len(result.rows) == 2
+    assert result.parse_error_count == 1

@@ -2,20 +2,42 @@ from __future__ import annotations
 
 import json
 import subprocess
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
 
 from .models import SourceQueryPlan
 
 
+class UncoverExecutionError(RuntimeError):
+    def __init__(self, message: str, *, recoverable: bool = True) -> None:
+        super().__init__(message)
+        self.recoverable = recoverable
+
+
+@dataclass(frozen=True)
+class UncoverParseResult:
+    rows: list[dict[str, Any]]
+    parse_error_count: int = 0
+
+
 def parse_uncover_jsonl(text: str) -> list[dict[str, Any]]:
+    return parse_uncover_jsonl_with_stats(text).rows
+
+
+def parse_uncover_jsonl_with_stats(text: str) -> UncoverParseResult:
     rows: list[dict[str, Any]] = []
+    parse_error_count = 0
     for line in text.splitlines():
         if not line.strip():
             continue
-        item = json.loads(line)
+        try:
+            item = json.loads(line)
+        except json.JSONDecodeError:
+            parse_error_count += 1
+            continue
         rows.append(_normalize_uncover_item(item))
-    return rows
+    return UncoverParseResult(rows=rows, parse_error_count=parse_error_count)
 
 
 class FixtureUncoverSourceClient:
@@ -38,10 +60,12 @@ class UncoverCommandSourceClient:
         provider_config_path: str | Path,
         binary: str = "uncover",
         runner: Callable[[list[str]], str] | None = None,
+        timeout_seconds: int = 30,
     ) -> None:
         self.provider_config_path = str(provider_config_path)
         self.binary = binary
         self.runner = runner or _run_command
+        self.timeout_seconds = timeout_seconds
 
     def fetch(self, plan: SourceQueryPlan) -> list[dict[str, Any]]:
         command = [
@@ -57,7 +81,18 @@ class UncoverCommandSourceClient:
             "-provider",
             self.provider_config_path,
         ]
-        return parse_uncover_jsonl(self.runner(command))
+        try:
+            if self.runner is _run_command:
+                output = self.runner(command, self.timeout_seconds)
+            else:
+                output = self.runner(command)
+        except subprocess.TimeoutExpired as exc:
+            raise UncoverExecutionError(f"uncover command timed out after {exc.timeout} seconds") from exc
+        except subprocess.CalledProcessError as exc:
+            message = (exc.stderr or exc.stdout or "").strip()
+            suffix = f": {message}" if message else ""
+            raise UncoverExecutionError(f"uncover command failed with exit code {exc.returncode}{suffix}") from exc
+        return parse_uncover_jsonl(output)
 
 
 def _normalize_uncover_item(item: dict[str, Any]) -> dict[str, Any]:
@@ -77,12 +112,13 @@ def _normalize_uncover_item(item: dict[str, Any]) -> dict[str, Any]:
     return normalized
 
 
-def _run_command(command: list[str]) -> str:
+def _run_command(command: list[str], timeout_seconds: int = 30) -> str:
     completed = subprocess.run(
         command,
         check=True,
         capture_output=True,
         text=True,
         encoding="utf-8",
+        timeout=timeout_seconds,
     )
     return completed.stdout
