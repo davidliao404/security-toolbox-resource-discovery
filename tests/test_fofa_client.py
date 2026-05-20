@@ -1,5 +1,6 @@
 import base64
 import json
+from json import JSONDecodeError
 from urllib.parse import parse_qs, urlparse
 
 import pytest
@@ -22,6 +23,21 @@ class FakeResponse:
 
     def read(self):
         return json.dumps(self.payload).encode("utf-8")
+
+
+class RawResponse:
+    def __init__(self, body: bytes, status: int = 200):
+        self.body = body
+        self.status = status
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        return False
+
+    def read(self):
+        return self.body
 
 
 def test_builds_search_url_with_qbase64_and_fields():
@@ -89,6 +105,47 @@ def test_fetch_search_raises_provider_error():
 
     with pytest.raises(FofaApiError, match="invalid key"):
         client.search('domain="example.org"', fields=["host"])
+
+
+def test_fetch_search_maps_timeout_to_provider_error():
+    def timeout_urlopen(url, timeout):
+        raise TimeoutError("timed out")
+
+    client = FofaApiClient(email="user@example.org", key="secret", opener=timeout_urlopen)
+
+    with pytest.raises(FofaApiError) as exc:
+        client.search('domain="example.org"', fields=["host"])
+
+    assert exc.value.code == "provider_timeout"
+    assert exc.value.recoverable is True
+    assert "timed out" in str(exc.value)
+
+
+def test_fetch_search_maps_rate_limit_to_provider_error():
+    def rate_limited_urlopen(url, timeout):
+        return FakeResponse({"error": True, "errmsg": "rate limit exceeded"}, status=429)
+
+    client = FofaApiClient(email="user@example.org", key="secret", opener=rate_limited_urlopen)
+
+    with pytest.raises(FofaApiError) as exc:
+        client.search('domain="example.org"', fields=["host"])
+
+    assert exc.value.code == "provider_rate_limited"
+    assert exc.value.recoverable is True
+
+
+def test_fetch_search_maps_malformed_response_to_provider_error():
+    def malformed_urlopen(url, timeout):
+        return RawResponse(b"not-json")
+
+    client = FofaApiClient(email="user@example.org", key="secret", opener=malformed_urlopen)
+
+    with pytest.raises(FofaApiError) as exc:
+        client.search('domain="example.org"', fields=["host"])
+
+    assert exc.value.code == "provider_bad_response"
+    assert exc.value.recoverable is True
+    assert not isinstance(exc.value.__cause__, JSONDecodeError)
 
 
 def test_fofa_source_client_requests_last_update_time_by_default():
