@@ -97,6 +97,9 @@ def test_run_and_save_records_llm_analysis_audit_event(tmp_path):
             llm_model="gpt-5.5",
             web_search_enabled=True,
             data_sharing_level="minimal",
+            authorization_id="llm_auth_001",
+            authorized_at="2026-05-20T00:00:00Z",
+            authorized_by="tenant_admin_hash",
         ),
         llm_enricher=FakeEnricher(),
         audit_log=tmp_path / "audit.jsonl",
@@ -117,6 +120,7 @@ def test_run_and_save_records_llm_analysis_audit_event(tmp_path):
         "model": "gpt-5.5",
         "web_search_enabled": True,
         "data_sharing_level": "minimal",
+        "authorization_id": "llm_auth_001",
         "usage": {
             "prompt_tokens": 10,
             "completion_tokens": 5,

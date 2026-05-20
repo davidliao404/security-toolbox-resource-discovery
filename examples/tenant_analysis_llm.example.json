@@ -4,5 +4,9 @@
   "llm_provider": "openai",
   "llm_model": "gpt-5.5",
   "web_search_enabled": true,
-  "data_sharing_level": "minimal"
+  "data_sharing_level": "minimal",
+  "authorization_id": "llm_auth_example_001",
+  "authorized_at": "2026-05-20T00:00:00Z",
+  "authorized_by": "tenant_admin_hash",
+  "revoked_at": null
 }

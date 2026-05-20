@@ -40,6 +40,7 @@ def run_discovery(
     data_sharing_level: str = "none",
     llm_provider: str | None = None,
     llm_model: str | None = None,
+    llm_authorization_id: str | None = None,
     tenant_analysis_config: TenantAnalysisConfig | None = None,
 ) -> dict:
     payload = json.loads(Path(seeds_path).read_text(encoding="utf-8"))
@@ -52,6 +53,7 @@ def run_discovery(
         data_sharing_level=data_sharing_level,
         llm_provider=llm_provider,
         llm_model=llm_model,
+        llm_authorization_id=llm_authorization_id,
         tenant_analysis_config=tenant_analysis_config,
     )
     seeds = [DiscoverySeed(**seed) for seed in payload["seeds"]]
@@ -76,6 +78,7 @@ def run_discovery(
             data_sharing_level=analysis_options["data_sharing_level"],
             llm_provider=analysis_options["llm_provider"],
             llm_model=analysis_options["llm_model"],
+            llm_authorization_id=analysis_options["llm_authorization_id"],
         )
     if mode == "live":
         if not allow_live_fofa:
@@ -96,6 +99,7 @@ def run_discovery(
                 data_sharing_level=analysis_options["data_sharing_level"],
                 llm_provider=analysis_options["llm_provider"],
                 llm_model=analysis_options["llm_model"],
+                llm_authorization_id=analysis_options["llm_authorization_id"],
             )
         api_client = FofaApiClient(email=fofa_email, key=fofa_key or "", base_url=fofa_base_url)
         return _execute_with_client(
@@ -110,6 +114,7 @@ def run_discovery(
             data_sharing_level=analysis_options["data_sharing_level"],
             llm_provider=analysis_options["llm_provider"],
             llm_model=analysis_options["llm_model"],
+            llm_authorization_id=analysis_options["llm_authorization_id"],
         )
     raise ValueError(f"Unsupported execution mode: {mode}")
 
@@ -139,6 +144,7 @@ def _execute_with_client(
     data_sharing_level: str = "none",
     llm_provider: str | None = None,
     llm_model: str | None = None,
+    llm_authorization_id: str | None = None,
 ) -> dict:
     assets = []
     services = []
@@ -178,6 +184,7 @@ def _execute_with_client(
         data_sharing_level=data_sharing_level,
         llm_provider=llm_provider,
         llm_model=llm_model,
+        llm_authorization_id=llm_authorization_id,
     )
     remediation = build_remediation_plan(risk_hint_dicts)
 
@@ -213,6 +220,7 @@ def _resolve_analysis_options(
     data_sharing_level: str,
     llm_provider: str | None,
     llm_model: str | None,
+    llm_authorization_id: str | None,
     tenant_analysis_config: TenantAnalysisConfig | None,
 ) -> dict:
     if tenant_analysis_config is not None:
@@ -223,4 +231,5 @@ def _resolve_analysis_options(
         "data_sharing_level": data_sharing_level,
         "llm_provider": llm_provider,
         "llm_model": llm_model,
+        "llm_authorization_id": llm_authorization_id,
     }

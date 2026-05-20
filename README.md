@@ -111,7 +111,7 @@ $env:FOFA_BASE_URL = "http://fofa.icu/api/v1/search/all"
 示例文件：
 
 - `examples/tenant_analysis_rules_only.json`：默认规则库模式。
-- `examples/tenant_analysis_llm.example.json`：LLM 增强配置样例，不包含 API Key，当前需要上层服务显式注入模型增强器后才能运行。
+- `examples/tenant_analysis_llm.example.json`：LLM 增强配置样例，不包含 API Key，包含授权记录字段；当前需要上层服务显式注入模型增强器后才能运行。
 
 预设提示语模板已放在 `src/resource_discovery/prompt_templates.py`，设计说明见 `docs/resource-discovery/llm-prompt-templates.md`。模板只接收最小化上下文，要求模型输出结构化 JSON，并明确禁止宣称漏洞已确认或生成攻击步骤。
 模型增强结果会在进入报告前做安全校验：置信度调整限制在 `-0.2` 到 `0.2`，未知风险 ID 会被忽略，摘要会截断到 200 字以内。
@@ -120,6 +120,7 @@ $env:FOFA_BASE_URL = "http://fofa.icu/api/v1/search/all"
 大模型增强路径的当前约束：
 
 - 默认关闭，必须显式启用。
+- 启用时必须存在未撤销的客户授权记录。
 - 默认不发送原始 SaaS 响应。
 - 最小化上下文只保留风险类别、严重级别、端口、服务和哈希化资产标识。
 - 大模型只能给出置信度调整建议和外部上下文摘要，不能把被动线索改写为“已确认漏洞”。

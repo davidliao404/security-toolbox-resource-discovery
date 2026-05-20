@@ -178,6 +178,10 @@ rules_plus_llm
 - `llm_model`：启用 LLM 时必须提供，例如 `gpt-5.5`。
 - `web_search_enabled`：是否允许模型侧网络搜索。
 - `data_sharing_level`：当前只允许 `none` 或 `minimal`；启用 LLM 时必须是 `minimal`。
+- `authorization_id`：客户授权记录 ID；启用 LLM 时必须提供。
+- `authorized_at`：授权时间。
+- `authorized_by`：授权人脱敏摘要。
+- `revoked_at`：撤销时间；存在时会拒绝继续使用 LLM 增强。
 
 示例文件：
 

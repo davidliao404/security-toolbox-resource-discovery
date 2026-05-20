@@ -215,7 +215,11 @@ MVP 默认不输出 `critical` 漏洞结论，除非只是表达“需紧急复�
   "llm_provider": null,
   "llm_model": null,
   "web_search_enabled": false,
-  "data_sharing_level": "none"
+  "data_sharing_level": "none",
+  "authorization_id": null,
+  "authorized_at": null,
+  "authorized_by": null,
+  "revoked_at": null
 }
 ```
 
@@ -229,11 +233,16 @@ MVP 默认不输出 `critical` 漏洞结论，除非只是表达“需紧急复�
 | `llm_model` | 大模型名称，启用时必填 |
 | `web_search_enabled` | 是否允许模型侧网络搜索，必须单独配置 |
 | `data_sharing_level` | 数据共享范围，当前取值 `none` 或 `minimal` |
+| `authorization_id` | 客户授权记录 ID，启用时必填 |
+| `authorized_at` | 客户授权时间，启用时必填 |
+| `authorized_by` | 授权人脱敏摘要，启用时必填 |
+| `revoked_at` | 撤销时间；存在时不得继续调用大模型 |
 
 约束：
 
 - `llm_enabled=false` 时强制 `rules_only`，并忽略模型供应商、模型名称、网络搜索和共享范围。
 - `llm_enabled=true` 时必须使用 `data_sharing_level=minimal`。
+- `llm_enabled=true` 时必须存在未撤销的授权记录。
 - 配置不得包含模型 API Key；密钥必须走独立密钥管理。
 
 ## 9. 分析结果模型 `AnalysisMetadata`
@@ -245,7 +254,8 @@ MVP 默认不输出 `critical` 漏洞结论，除非只是表达“需紧急复�
   "web_search_enabled": false,
   "data_sharing_level": "none",
   "provider": null,
-  "model": null
+  "model": null,
+  "authorization_id": null
 }
 ```
 

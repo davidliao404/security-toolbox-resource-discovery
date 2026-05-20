@@ -21,6 +21,7 @@ def apply_analysis(
     data_sharing_level: str = "none",
     llm_provider: str | None = None,
     llm_model: str | None = None,
+    llm_authorization_id: str | None = None,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     if analysis_mode == "rules_only":
         return risk_hints, {
@@ -53,6 +54,8 @@ def apply_analysis(
         "provider": provider,
         "model": model,
     }
+    if llm_authorization_id is not None:
+        analysis["authorization_id"] = llm_authorization_id
     usage = _safe_usage(enrichment.get("usage"))
     if usage is not None:
         analysis["usage"] = usage

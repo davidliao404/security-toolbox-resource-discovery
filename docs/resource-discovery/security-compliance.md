@@ -109,6 +109,7 @@ MVP 至少需要：
 
 - 默认关闭，不向第三方模型发送任何发现结果。
 - 启用时必须由租户级配置显式声明 `llm_enabled=true`。
+- 启用时必须存在未撤销的客户授权记录，包括授权 ID、授权时间和授权人脱敏摘要。
 - 当前只允许 `data_sharing_level=minimal`，不得发送原始 SaaS 响应。
 - 最小化上下文只包含风险类别、严重级别、规则置信度、端口、服务和哈希化资产标识。
 - 不发送 SaaS API Key、客户凭据、本地扫描结果或客户内部备注。
@@ -193,6 +194,7 @@ MVP 至少需要：
 
 - `provider`
 - `model`
+- `authorization_id`
 - `web_search_enabled`
 - `data_sharing_level`
 - `usage`，如连接器返回 token 和费用估算

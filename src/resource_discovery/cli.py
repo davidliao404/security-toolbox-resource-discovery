@@ -243,6 +243,8 @@ def _record_llm_analysis(logger, payload: dict) -> None:
         "web_search_enabled": analysis.get("web_search_enabled"),
         "data_sharing_level": analysis.get("data_sharing_level"),
     }
+    if analysis.get("authorization_id") is not None:
+        details["authorization_id"] = analysis.get("authorization_id")
     if analysis.get("usage") is not None:
         details["usage"] = analysis.get("usage")
     _record(
