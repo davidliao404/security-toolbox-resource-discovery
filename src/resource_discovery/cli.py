@@ -237,16 +237,19 @@ def _record_llm_analysis(logger, payload: dict) -> None:
     analysis = payload.get("analysis", {})
     if not analysis.get("llm_enabled"):
         return
+    details = {
+        "provider": analysis.get("provider"),
+        "model": analysis.get("model"),
+        "web_search_enabled": analysis.get("web_search_enabled"),
+        "data_sharing_level": analysis.get("data_sharing_level"),
+    }
+    if analysis.get("usage") is not None:
+        details["usage"] = analysis.get("usage")
     _record(
         logger,
         payload,
         "llm_analysis_used",
-        {
-            "provider": analysis.get("provider"),
-            "model": analysis.get("model"),
-            "web_search_enabled": analysis.get("web_search_enabled"),
-            "data_sharing_level": analysis.get("data_sharing_level"),
-        },
+        details,
     )
 
 

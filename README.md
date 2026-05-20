@@ -115,6 +115,7 @@ $env:FOFA_BASE_URL = "http://fofa.icu/api/v1/search/all"
 
 预设提示语模板已放在 `src/resource_discovery/prompt_templates.py`，设计说明见 `docs/resource-discovery/llm-prompt-templates.md`。模板只接收最小化上下文，要求模型输出结构化 JSON，并明确禁止宣称漏洞已确认或生成攻击步骤。
 模型增强结果会在进入报告前做安全校验：置信度调整限制在 `-0.2` 到 `0.2`，未知风险 ID 会被忽略，摘要会截断到 200 字以内。
+如果未来模型连接器返回 token 和费用估算，`analysis.usage` 与 `llm_analysis_used` 审计事件会保留清洗后的 `prompt_tokens`、`completion_tokens`、`total_tokens` 和 `estimated_cost_usd`。
 
 大模型增强路径的当前约束：
 

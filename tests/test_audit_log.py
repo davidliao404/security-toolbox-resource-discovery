@@ -78,6 +78,12 @@ def test_run_and_save_records_llm_analysis_audit_event(tmp_path):
                         "external_context_summary": "租户已授权模型增强。",
                     }
                 ],
+                "usage": {
+                    "prompt_tokens": 10,
+                    "completion_tokens": 5,
+                    "total_tokens": 15,
+                    "estimated_cost_usd": 0.0003,
+                },
             }
 
     run_and_maybe_save(
@@ -111,4 +117,10 @@ def test_run_and_save_records_llm_analysis_audit_event(tmp_path):
         "model": "gpt-5.5",
         "web_search_enabled": True,
         "data_sharing_level": "minimal",
+        "usage": {
+            "prompt_tokens": 10,
+            "completion_tokens": 5,
+            "total_tokens": 15,
+            "estimated_cost_usd": 0.0003,
+        },
     }

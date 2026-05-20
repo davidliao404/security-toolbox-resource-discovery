@@ -70,6 +70,12 @@ def test_rules_plus_llm_uses_injected_enricher_with_minimal_context():
                         "external_context_summary": "公开资料显示该类服务应优先复核。",
                     }
                 ],
+                "usage": {
+                    "prompt_tokens": 100,
+                    "completion_tokens": 25,
+                    "total_tokens": 125,
+                    "estimated_cost_usd": 0.0012,
+                },
             }
 
     payload = run_discovery(
@@ -85,6 +91,12 @@ def test_rules_plus_llm_uses_injected_enricher_with_minimal_context():
     assert payload["analysis"]["analysis_mode"] == "rules_plus_llm"
     assert payload["analysis"]["llm_enabled"] is True
     assert payload["analysis"]["web_search_enabled"] is True
+    assert payload["analysis"]["usage"] == {
+        "prompt_tokens": 100,
+        "completion_tokens": 25,
+        "total_tokens": 125,
+        "estimated_cost_usd": 0.0012,
+    }
     assert payload["risk_hints"][0]["llm_enrichment"]["provider"] == "fake"
     assert payload["risk_hints"][0]["analysis_confidence"] == pytest.approx(
         min(payload["risk_hints"][0]["confidence"] + 0.05, 1.0)
@@ -163,3 +175,35 @@ def test_llm_enrichment_ignores_unknown_risk_ids():
     )
 
     assert "llm_enrichment" not in enriched[0]
+
+
+def test_llm_usage_metadata_is_sanitized():
+    class FakeEnricher:
+        def enrich(self, context):
+            return {
+                "provider": "fake",
+                "model": "fake-risk-model",
+                "items": [],
+                "usage": {
+                    "prompt_tokens": -100,
+                    "completion_tokens": "12",
+                    "estimated_cost_usd": "-3",
+                    "ignored": "field",
+                },
+            }
+
+    payload = run_discovery(
+        seeds_path="examples/seeds.json",
+        mode="fixture",
+        fixture_path="tests/fixtures/fofa_results.json",
+        analysis_mode="rules_plus_llm",
+        llm_enricher=FakeEnricher(),
+        data_sharing_level="minimal",
+    )
+
+    assert payload["analysis"]["usage"] == {
+        "prompt_tokens": 0,
+        "completion_tokens": 12,
+        "total_tokens": 12,
+        "estimated_cost_usd": 0.0,
+    }

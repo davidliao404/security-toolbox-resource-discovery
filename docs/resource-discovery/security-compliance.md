@@ -195,6 +195,7 @@ MVP 至少需要：
 - `model`
 - `web_search_enabled`
 - `data_sharing_level`
+- `usage`，如连接器返回 token 和费用估算
 
 ## 10. 合规边界
 

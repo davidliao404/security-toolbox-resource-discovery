@@ -122,5 +122,7 @@
 - `external_context_summary` 会截断到 200 字以内。
 - 非列表类型的 `items` 会按空结果处理。
 - 规则置信度不会被覆盖，只新增 `analysis_confidence`。
+- 如果连接器返回 `usage`，会清洗并保留 `prompt_tokens`、`completion_tokens`、`total_tokens` 和 `estimated_cost_usd`。
 
 启用大模型增强时，CLI 审计日志会额外写入 `llm_analysis_used` 事件，记录模型供应商、模型名称、网络搜索开关和数据共享范围。
+如果存在 `usage`，该事件也会记录清洗后的 token 与费用估算。当前仓库只承载这些字段，不内置真实模型计费逻辑。

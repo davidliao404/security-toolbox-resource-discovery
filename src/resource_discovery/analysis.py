@@ -45,7 +45,7 @@ def apply_analysis(
     provider = enrichment.get("provider") or llm_provider
     model = enrichment.get("model") or llm_model
     enriched_payload = {**enrichment, "provider": provider, "model": model}
-    return enrich_risk_hints(risk_hints, enriched_payload), {
+    analysis = {
         "analysis_mode": "rules_plus_llm",
         "llm_enabled": True,
         "web_search_enabled": web_search_enabled,
@@ -53,6 +53,10 @@ def apply_analysis(
         "provider": provider,
         "model": model,
     }
+    usage = _safe_usage(enrichment.get("usage"))
+    if usage is not None:
+        analysis["usage"] = usage
+    return enrich_risk_hints(risk_hints, enriched_payload), analysis
 
 
 def build_minimal_llm_context(
@@ -157,3 +161,35 @@ def _safe_summary(value: Any, max_length: int = 200) -> str:
     if len(text) <= max_length:
         return text
     return text[:max_length]
+
+
+def _safe_usage(value: Any) -> dict[str, Any] | None:
+    if not isinstance(value, dict):
+        return None
+    prompt_tokens = _non_negative_int(value.get("prompt_tokens", 0))
+    completion_tokens = _non_negative_int(value.get("completion_tokens", 0))
+    total_tokens = _non_negative_int(
+        value.get("total_tokens", prompt_tokens + completion_tokens)
+    )
+    if total_tokens < prompt_tokens + completion_tokens:
+        total_tokens = prompt_tokens + completion_tokens
+    return {
+        "prompt_tokens": prompt_tokens,
+        "completion_tokens": completion_tokens,
+        "total_tokens": total_tokens,
+        "estimated_cost_usd": _non_negative_float(value.get("estimated_cost_usd", 0.0)),
+    }
+
+
+def _non_negative_int(value: Any) -> int:
+    try:
+        return max(int(value), 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _non_negative_float(value: Any) -> float:
+    try:
+        return round(max(float(value), 0.0), 6)
+    except (TypeError, ValueError):
+        return 0.0
