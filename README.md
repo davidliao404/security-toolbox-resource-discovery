@@ -17,6 +17,7 @@
 - 风险识别规则来自包内 `risk_rules.yml`，可配置端口、关键字、严重级别、处置建议和优先级。
 - 支持双轨风险分析接口：默认 `rules_only` 只使用规则库；`rules_plus_llm` 作为显式注入的大模型增强扩展点，使用最小化上下文并在报告与审计中标识来源。
 - 支持面向安全工具箱的网关 API handler：查询租户授权范围、创建资产探测任务、查询任务状态、拉取资产探测结果。
+- 网关 API handler 当前采用轻量异步模式：`create_task` 返回 `queued`，由 `TaskWorker` 执行后写入结果。
 - 支持租户授权范围约束：客户请求只能缩小后台安全人员录入的范围，不能扩大。
 - 支持 uncover FOFA JSONL fixture 和 sidecar 命令客户端，POC 阶段只启用 FOFA。
 - 支持测绘情报 freshness 标注，区分 `fresh`、`aging`、`stale`、`unknown`，但不把陈旧情报等同于资产已下线。

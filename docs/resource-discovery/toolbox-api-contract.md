@@ -409,11 +409,10 @@ GET /api/v1/discovery/tasks/{task_id}/results?cursor=&limit=100
 - 使用 Python handler 模拟 API。
 - 使用文件存储。
 - 支持 fixture 和 live FOFA 验证。
-- 同步执行仍存在于 handler 中。
+- `create_task` 已采用 queued 模式，结果由轻量 worker 写入。
 
 下一阶段：
 
-- 创建任务改为 `queued`。
-- 引入轻量 worker。
 - 拆分任务 repository 和结果 repository。
 - 结果分页从 repository 层实现。
+- 增加更完整的审计、TTL 和 live 验证脚本。

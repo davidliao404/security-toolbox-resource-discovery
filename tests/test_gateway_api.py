@@ -2,7 +2,9 @@ from resource_discovery.gateway_api import DiscoveryGatewayApi
 from resource_discovery.repositories import FileResultRepository, FileTaskRepository
 from resource_discovery.scope_guard import TenantScopeProfile
 from resource_discovery.source_client import FixtureSourceClient
+from resource_discovery.task_queue import InMemoryTaskQueue
 from resource_discovery.uncover_client import FixtureUncoverSourceClient
+from resource_discovery.worker import TaskWorker
 
 
 def _profile():
@@ -38,8 +40,14 @@ def test_get_scope_profile_returns_toolbox_contract(tmp_path):
     assert response["default_scope"] == {"root_domains": ["example.org"]}
 
 
-def test_create_discovery_task_executes_with_accepted_scope(tmp_path):
-    response = _api(tmp_path).create_task(
+def test_create_discovery_task_queues_with_accepted_scope(tmp_path):
+    queue = InMemoryTaskQueue()
+    response = DiscoveryGatewayApi(
+        profile=_profile(),
+        source_client=FixtureSourceClient("tests/fixtures/fofa_results.json"),
+        snapshot_dir=tmp_path,
+        queue=queue,
+    ).create_task(
         {
             "profile_id": "scope_profile_001",
             "requested_scope": {"domains": ["vpn.example.org"]},
@@ -49,13 +57,14 @@ def test_create_discovery_task_executes_with_accepted_scope(tmp_path):
         }
     )
 
-    assert response["status"] == "success"
+    assert response["status"] == "queued"
     assert type(response["status"]) is str
     assert response["accepted_scope"] == {"domains": ["vpn.example.org"]}
     assert response["rejected_scope"] == []
     assert response["query_plan_summary"] == {"engines": ["fofa"], "planned_queries": 1}
     assert response["status_url"].endswith(response["task_id"])
     assert response["result_url"].endswith(f"{response['task_id']}/results")
+    assert len(queue) == 1
 
 
 def test_create_discovery_task_rejects_out_of_scope_values(tmp_path):
@@ -74,8 +83,17 @@ def test_create_discovery_task_rejects_out_of_scope_values(tmp_path):
     assert response["rejected_scope"][0]["reason"] == "outside_tenant_allowed_scope"
 
 
-def test_get_task_and_results_return_toolbox_payload(tmp_path):
-    api = _api(tmp_path)
+def test_get_task_and_results_return_toolbox_payload_after_worker_runs(tmp_path):
+    task_repo = FileTaskRepository(tmp_path / "tasks")
+    result_repo = FileResultRepository(tmp_path / "results")
+    queue = InMemoryTaskQueue()
+    api = DiscoveryGatewayApi(
+        profile=_profile(),
+        source_client=FixtureSourceClient("tests/fixtures/fofa_results.json"),
+        task_repository=task_repo,
+        result_repository=result_repo,
+        queue=queue,
+    )
     created = api.create_task(
         {
             "profile_id": "scope_profile_001",
@@ -85,6 +103,13 @@ def test_get_task_and_results_return_toolbox_payload(tmp_path):
             "purpose": "toolbox_asset_discovery",
         }
     )
+    worker = TaskWorker(
+        task_repository=task_repo,
+        result_repository=result_repo,
+        queue=queue,
+        source_client=FixtureSourceClient("tests/fixtures/fofa_results.json"),
+    )
+    worker.run_once()
 
     task = api.get_task(created["task_id"])
     results = api.get_results(created["task_id"], limit=2)
@@ -99,10 +124,15 @@ def test_get_task_and_results_return_toolbox_payload(tmp_path):
 
 
 def test_gateway_api_can_use_uncover_fixture_client(tmp_path):
+    task_repo = FileTaskRepository(tmp_path / "tasks")
+    result_repo = FileResultRepository(tmp_path / "results")
+    queue = InMemoryTaskQueue()
     api = DiscoveryGatewayApi(
         profile=_profile(),
         source_client=FixtureUncoverSourceClient("tests/fixtures/uncover_fofa_results.jsonl"),
-        snapshot_dir=tmp_path,
+        task_repository=task_repo,
+        result_repository=result_repo,
+        queue=queue,
     )
 
     created = api.create_task(
@@ -114,19 +144,29 @@ def test_gateway_api_can_use_uncover_fixture_client(tmp_path):
             "purpose": "toolbox_asset_discovery",
         }
     )
+    TaskWorker(
+        task_repository=task_repo,
+        result_repository=result_repo,
+        queue=queue,
+        source_client=FixtureUncoverSourceClient("tests/fixtures/uncover_fofa_results.jsonl"),
+    ).run_once()
     results = api.get_results(created["task_id"])
 
-    assert created["status"] == "success"
+    assert created["status"] == "queued"
     assert results["services"][0]["freshness"]["status"] == "fresh"
     assert results["services"][1]["freshness"]["status"] == "stale"
 
 
 def test_gateway_api_can_use_repository_abstractions(tmp_path):
+    task_repo = FileTaskRepository(tmp_path / "tasks")
+    result_repo = FileResultRepository(tmp_path / "results")
+    queue = InMemoryTaskQueue()
     api = DiscoveryGatewayApi(
         profile=_profile(),
         source_client=FixtureSourceClient("tests/fixtures/fofa_results.json"),
-        task_repository=FileTaskRepository(tmp_path / "tasks"),
-        result_repository=FileResultRepository(tmp_path / "results"),
+        task_repository=task_repo,
+        result_repository=result_repo,
+        queue=queue,
     )
 
     created = api.create_task(
@@ -139,5 +179,11 @@ def test_gateway_api_can_use_repository_abstractions(tmp_path):
         }
     )
 
-    assert api.get_task(created["task_id"])["status"] == "success"
+    assert api.get_task(created["task_id"])["status"] == "queued"
+    TaskWorker(
+        task_repository=task_repo,
+        result_repository=result_repo,
+        queue=queue,
+        source_client=FixtureSourceClient("tests/fixtures/fofa_results.json"),
+    ).run_once()
     assert api.get_results(created["task_id"], limit=1)["page"]["next_cursor"] == "1"

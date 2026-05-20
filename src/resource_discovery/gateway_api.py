@@ -10,6 +10,7 @@ from .query_planner import plan_fofa_queries
 from .repositories import FileResultRepository, FileTaskRepository, ResultRepository, TaskRepository
 from .scope_guard import TenantScopeProfile, validate_requested_scope
 from .source_client import SourceClient
+from .task_queue import InMemoryTaskQueue, TaskWorkItem
 
 
 class DiscoveryGatewayApi:
@@ -20,6 +21,7 @@ class DiscoveryGatewayApi:
         snapshot_dir: str | Path | None = None,
         task_repository: TaskRepository | None = None,
         result_repository: ResultRepository | None = None,
+        queue: InMemoryTaskQueue | None = None,
     ) -> None:
         self.profile = profile
         self.source_client = source_client
@@ -30,6 +32,7 @@ class DiscoveryGatewayApi:
             result_repository = result_repository or FileResultRepository(Path(snapshot_dir) / "results")
         self.task_repository = task_repository
         self.result_repository = result_repository
+        self.queue = queue if queue is not None else InMemoryTaskQueue()
 
     def get_scope_profile(self) -> dict[str, Any]:
         return self.profile.to_toolbox_summary()
@@ -63,20 +66,19 @@ class DiscoveryGatewayApi:
         task_id = request.get("task_id") or "dt_api_001"
         seeds = seeds_from_scope(scope_result.accepted_scope, self.profile.authorization_note)
         plans = plan_fofa_queries(task_id, seeds, page_limit=1, result_limit=result_limit)
-        payload = run_discovery_from_seeds(
-            task_id=task_id,
+        payload = _queued_task_payload(
             tenant_id=self.profile.tenant_id,
-            seeds=seeds,
-            mode="fixture",
-            source_client=self.source_client,
-            page_limit=1,
+            task_id=task_id,
+            accepted_scope=scope_result.accepted_scope,
+            engines=engines,
             result_limit=result_limit,
+            authorization_note=self.profile.authorization_note,
         )
         self.task_repository.create(payload)
-        self.result_repository.save_results(self.profile.tenant_id, task_id, payload)
+        self.queue.enqueue(TaskWorkItem(tenant_id=self.profile.tenant_id, task_id=task_id))
         return {
             "task_id": task_id,
-            "status": _status_value(payload["task"]["status"]),
+            "status": "queued",
             "accepted_scope": scope_result.accepted_scope,
             "rejected_scope": [],
             "query_plan_summary": {
@@ -132,3 +134,33 @@ def _seed(index: int, seed_type: str, value: str, authorization_note: str | None
 
 def _status_value(status: Any) -> str:
     return getattr(status, "value", status)
+
+
+def _queued_task_payload(
+    tenant_id: str,
+    task_id: str,
+    accepted_scope: dict[str, list[str]],
+    engines: list[str],
+    result_limit: int,
+    authorization_note: str | None,
+) -> dict[str, Any]:
+    return {
+        "task": {
+            "tenant_id": tenant_id,
+            "task_id": task_id,
+            "status": "queued",
+            "mode": "async_task",
+            "quota_usage": {},
+            "errors": [],
+        },
+        "request": {
+            "accepted_scope": accepted_scope,
+            "engines": engines,
+            "result_limit": result_limit,
+        },
+        "authorization_note": authorization_note,
+        "snapshot": {
+            "summary": {},
+            "analysis": {"analysis_mode": "rules_only", "llm_enabled": False},
+        },
+    }
