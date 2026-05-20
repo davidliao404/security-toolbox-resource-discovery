@@ -39,6 +39,7 @@ def build_report_snapshot(payload: dict) -> dict:
             "risk_hint_count": len(payload.get("risk_hints", [])),
             "source_evidence_count": len(payload.get("source_evidence", [])),
         },
+        "analysis": payload.get("analysis"),
         "report": payload.get("report"),
     }
 

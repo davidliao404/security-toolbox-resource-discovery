@@ -83,6 +83,8 @@ dry-run 不调用外部 API，只输出受控 FOFA 查询计划：
   --save-dir .\artifacts\snapshots
 ```
 
+快照列表摘要会包含资产数量、服务数量、风险线索数量、`analysis_mode` 和 `llm_enabled`，方便区分历史报告是否使用过大模型增强。
+
 读取快照：
 
 ```powershell

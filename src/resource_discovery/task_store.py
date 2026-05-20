@@ -48,6 +48,7 @@ class FileTaskStore:
             payload = json.loads(path.read_text(encoding="utf-8"))
             task = payload.get("task") or {}
             summary = (payload.get("snapshot") or {}).get("summary") or {}
+            analysis = (payload.get("snapshot") or {}).get("analysis") or payload.get("analysis") or {}
             summaries.append(
                 {
                     "tenant_id": task.get("tenant_id"),
@@ -56,6 +57,8 @@ class FileTaskStore:
                     "asset_count": summary.get("asset_count", 0),
                     "service_count": summary.get("service_count", 0),
                     "risk_hint_count": summary.get("risk_hint_count", 0),
+                    "analysis_mode": analysis.get("analysis_mode"),
+                    "llm_enabled": analysis.get("llm_enabled"),
                 }
             )
         return summaries

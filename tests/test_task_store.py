@@ -43,6 +43,8 @@ def test_file_task_store_lists_snapshot_summaries(tmp_path):
             "asset_count": 4,
             "service_count": 4,
             "risk_hint_count": 6,
+            "analysis_mode": "rules_only",
+            "llm_enabled": False,
         }
     ]
 

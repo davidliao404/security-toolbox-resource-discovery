@@ -74,3 +74,5 @@ def test_report_snapshot_is_json_serializable_and_contains_task_summary():
     assert snapshot["summary"]["asset_count"] == 4
     assert snapshot["summary"]["service_count"] == 4
     assert snapshot["summary"]["risk_hint_count"] == 6
+    assert snapshot["analysis"]["analysis_mode"] == "rules_only"
+    assert snapshot["analysis"]["llm_enabled"] is False
