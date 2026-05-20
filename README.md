@@ -21,6 +21,8 @@
 - 支持租户授权范围约束：客户请求只能缩小后台安全人员录入的范围，不能扩大。
 - 支持 uncover FOFA JSONL fixture 和 sidecar 命令客户端，POC 阶段只启用 FOFA。
 - 支持测绘情报 freshness 标注，区分 `fresh`、`aging`、`stale`、`unknown`，但不把陈旧情报等同于资产已下线。
+- 支持网关 API 活动审计，覆盖范围查看、任务请求、范围拒绝、任务排队、worker 执行和结果拉取。
+- 支持网关短期留存策略基线：任务元数据 180 天、结果快照 90 天、审计日志 365 天。
 
 安全工具箱 API 契约见：
 
@@ -84,6 +86,16 @@ $env:FOFA_BASE_URL = "http://fofa.icu/api/v1/search/all"
 ```
 
 `artifacts/` 已被 Git 忽略，用于保存真实查询快照、报告和审计日志。
+
+运行受控 live 验证脚本：
+
+```powershell
+$env:FOFA_API_KEY = "<key>"
+$env:FOFA_BASE_URL = "http://fofa.icu/api/v1/search/all"
+.\.venv\Scripts\python.exe .\scripts\live_fofa_validation.py --domain china-entercom.com --page-limit 1 --result-limit 20
+```
+
+脚本只输出摘要，不打印 API Key；真实种子和完整查询快照会写入 `artifacts/live-validation/`。
 
 命令会向 stdout 输出 JSON，其中包含：
 
