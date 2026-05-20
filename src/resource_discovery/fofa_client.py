@@ -25,6 +25,7 @@ class FofaApiClient:
         base_url: str = "https://fofa.info/api/v1/search/all",
         opener: Callable | None = None,
         timeout: int = 30,
+        full: bool = False,
     ) -> None:
         if not key.strip():
             raise ValueError("FOFA key is required")
@@ -33,6 +34,7 @@ class FofaApiClient:
         self.base_url = base_url
         self.opener = opener or urlopen
         self.timeout = timeout
+        self.full = full
 
     def build_search_url(
         self,
@@ -48,6 +50,7 @@ class FofaApiClient:
             "fields": ",".join(fields),
             "page": str(page),
             "size": str(size),
+            "full": "true" if self.full else "false",
         }
         if self.email:
             params["email"] = self.email

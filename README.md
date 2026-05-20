@@ -89,6 +89,8 @@ $env:FOFA_BASE_URL = "http://fofa.icu/api/v1/search/all"
 
 `artifacts/` 已被 Git 忽略，用于保存真实查询快照、报告和审计日志。
 
+FOFA client 默认显式使用 `full=false`，即只查询供应商默认的一年内数据；如果未来要启用 `full=true` 搜索全部历史数据，应先评估费用、配额和陈旧情报占比。
+
 运行受控 live 验证脚本：
 
 ```powershell
