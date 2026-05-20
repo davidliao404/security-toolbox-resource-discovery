@@ -41,6 +41,38 @@
 
 POC handler 暂不实现签名校验，但 API 契约按生产要求保留这些字段。
 
+### 2.2.1 签名算法
+
+第一版建议使用 HMAC-SHA256。签名原文为：
+
+```text
+METHOD
+PATH
+X-Timestamp
+X-Nonce
+SHA256(request_body)
+```
+
+示例：
+
+```text
+POST
+/api/v1/discovery/tasks
+2026-05-20T12:00:00+00:00
+nonce-001
+4f8f...
+```
+
+约定：
+
+- `METHOD` 使用大写。
+- `PATH` 不包含域名。
+- `request_body` 使用实际发送的 UTF-8 字节；`GET` 请求 body 为空字节。
+- `X-Signature` 为 HMAC-SHA256 十六进制字符串。
+- 网关默认时间窗建议 5 分钟。
+- `X-Nonce` 在时间窗内只能使用一次，重复使用视为重放请求。
+- 签名失败、时间窗失败、nonce 重放均不得返回签名计算细节。
+
 ### 2.3 状态枚举
 
 任务状态：
