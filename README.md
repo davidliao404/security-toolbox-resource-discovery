@@ -27,6 +27,7 @@
 安全工具箱 API 契约见：
 
 - `docs/resource-discovery/toolbox-api-contract.md`
+- `docs/resource-discovery/toolbox-handoff.md`
 
 ## 本地运行
 
