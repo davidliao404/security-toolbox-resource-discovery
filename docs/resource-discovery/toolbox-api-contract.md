@@ -92,7 +92,8 @@ POC handler 暂不实现签名校验，但 API 契约按生产要求保留这些
 {
   "page": {
     "next_cursor": "100",
-    "limit": 100
+    "limit": 100,
+    "type": "assets"
   }
 }
 ```
@@ -102,6 +103,7 @@ POC handler 暂不实现签名校验，但 API 契约按生产要求保留这些
 - `cursor` 第一版使用字符串形式的偏移量。
 - `limit` 默认 100。
 - `limit` 应受网关上限保护。
+- `type` 表示当前分页的数据类型，首批取值为 `assets`、`services`、`source_evidence`。
 - 重复请求同一个 cursor 应返回稳定结果。
 
 ## 3. 查询租户授权范围
@@ -255,8 +257,16 @@ GET /api/v1/discovery/tasks/{task_id}
 ## 6. 拉取任务结果
 
 ```http
-GET /api/v1/discovery/tasks/{task_id}/results?cursor=&limit=100
+GET /api/v1/discovery/tasks/{task_id}/results?result_type=assets&cursor=&limit=100
 ```
+
+`result_type` 取值：
+
+| result_type | 返回数组 |
+| --- | --- |
+| `assets` | `assets` |
+| `services` | `services` |
+| `source_evidence` | `source_evidence` |
 
 响应：
 
@@ -322,7 +332,8 @@ GET /api/v1/discovery/tasks/{task_id}/results?cursor=&limit=100
   ],
   "page": {
     "next_cursor": null,
-    "limit": 100
+    "limit": 100,
+    "type": "assets"
   }
 }
 ```
@@ -410,9 +421,13 @@ GET /api/v1/discovery/tasks/{task_id}/results?cursor=&limit=100
 - 使用文件存储。
 - 支持 fixture 和 live FOFA 验证。
 - `create_task` 已采用 queued 模式，结果由轻量 worker 写入。
+- 已拆分任务 repository 和结果 repository。
+- 已支持按 `assets`、`services`、`source_evidence` 分页拉取结果。
+- 已增加网关审计、TTL 策略和 live 验证脚本。
 
 下一阶段：
 
-- 拆分任务 repository 和结果 repository。
-- 结果分页从 repository 层实现。
-- 增加更完整的审计、TTL 和 live 验证脚本。
+- 接入真实 HTTP API 框架。
+- 接入可靠队列和生产数据库。
+- 实现签名鉴权、nonce 防重放和租户级配额。
+- 将 FOFA/uncover 错误映射接入 worker 重试策略。

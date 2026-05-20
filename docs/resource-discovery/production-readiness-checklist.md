@@ -21,7 +21,7 @@
 | 结果持久化 | `PoC` | 替换文件存储，使用数据库或对象存储 |
 | 审计 | `PoC` | 接入集中审计、权限检索和留存策略 |
 | 留存策略 | `PoC` | 接入定时清理任务和客户级策略 |
-| FOFA/uncover | `PoC` | 明确生产供应商配置、限速和降级 |
+| FOFA/uncover | `PoC` | 明确生产供应商配置、限速、重试和降级 |
 | 鉴权签名 | `Pending` | 实现请求签名、nonce 和时间窗校验 |
 | 运维观测 | `Pending` | 增加指标、日志、告警和追踪 |
 | 双区域合规 | `Decision` | 确认香港与内地区域部署边界 |
@@ -116,7 +116,8 @@
 
 - [x] 已定义 `ApiError` 和首批错误码。
 - [x] 范围越权和 profile mismatch 返回结构化错误。
-- [ ] FOFA 原生错误映射到 `provider_auth_failed`、`provider_rate_limited`、`provider_timeout`、`provider_bad_response`。
+- [x] FOFA 原生错误映射到 `provider_auth_failed`、`provider_rate_limited`、`provider_timeout`、`provider_bad_response`。
+- [x] uncover sidecar 超时、非零退出和坏 JSONL 已转换为可解释错误或可降级解析。
 - [ ] worker 失败时保留可恢复标识和重试建议。
 - [ ] 对工具箱返回错误不包含供应商原始敏感响应。
 
