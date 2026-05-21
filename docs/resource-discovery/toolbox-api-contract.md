@@ -113,6 +113,8 @@ nonce-001
 | `scope_out_of_bounds` | 请求范围超过后台授权范围 | false |
 | `engine_not_allowed` | 请求的测绘引擎未授权 | false |
 | `result_limit_exceeded` | 请求结果上限超过租户配置 | false |
+| `invalid_discovery_strategy` | 请求的发现策略不受支持 | false |
+| `query_plan_budget_exceeded` | 发现策略展开后的查询数超过租户上限 | false |
 | `provider_auth_failed` | 外部供应商认证失败 | true |
 | `provider_rate_limited` | 外部供应商限速 | true |
 | `provider_timeout` | 外部供应商超时 | true |
@@ -197,6 +199,7 @@ POST /api/v1/discovery/tasks
     "org_names": []
   },
   "engines": ["fofa"],
+  "discovery_strategy": "baseline",
   "result_limit": 100,
   "purpose": "toolbox_asset_discovery"
 }
@@ -216,6 +219,7 @@ POST /api/v1/discovery/tasks
   "rejected_scope": [],
   "query_plan_summary": {
     "engines": ["fofa"],
+    "strategy": "baseline",
     "planned_queries": 3
   },
   "status_url": "/api/v1/discovery/tasks/dt_20260520_000001",
@@ -254,6 +258,9 @@ POST /api/v1/discovery/tasks
 - 工具箱不能提交 FOFA 原生查询语句。
 - `requested_scope` 只能缩小 `TenantScopeProfile`。
 - `result_limit` 不能超过 profile 中的 `max_results_per_task`。
+- `discovery_strategy` 默认为 `baseline`，只生成低配额的基础被动查询。
+- `discovery_strategy="easm"` 会在授权范围内生成更完整的被动查询计划，例如根域名、Host 后缀、证书域名、证书组织、标题和 ASN 组织匹配；它不会执行主动扫描或漏洞验证，但会消耗更多供应商查询配额。
+- `discovery_strategy` 只允许 `baseline` 和 `easm`。未知策略返回 `invalid_discovery_strategy`；策略展开后的查询数超过 `max_queries_per_task` 时返回 `query_plan_budget_exceeded`。
 - 第一版只允许 `engines=["fofa"]`。
 
 ## 5. 查询任务状态

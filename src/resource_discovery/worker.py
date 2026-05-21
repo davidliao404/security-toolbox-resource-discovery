@@ -86,6 +86,8 @@ class TaskWorker:
             source_client=self.source_client,
             page_limit=1,
             result_limit=int(request.get("result_limit", 100)),
+            discovery_strategy=request.get("discovery_strategy", "baseline"),
+            max_query_plans=int(request.get("max_query_plans", 30)),
         )
 
     def _mark_status(self, task_payload: dict[str, Any], status: str) -> None:

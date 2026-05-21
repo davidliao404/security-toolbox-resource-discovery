@@ -36,3 +36,21 @@ def scope_out_of_bounds_error(profile_id: str, rejected_scope: list[dict[str, st
         recoverable=False,
         details={"profile_id": profile_id, "rejected_scope": rejected_scope},
     )
+
+
+def invalid_discovery_strategy_error(strategy: str) -> ApiError:
+    return ApiError(
+        code="invalid_discovery_strategy",
+        message="Requested discovery strategy is not supported.",
+        recoverable=False,
+        details={"strategy": strategy, "supported_strategies": ["baseline", "easm"]},
+    )
+
+
+def query_plan_budget_exceeded_error(max_query_plans: int, planned_queries: int) -> ApiError:
+    return ApiError(
+        code="query_plan_budget_exceeded",
+        message="Requested discovery strategy exceeds the tenant query plan budget.",
+        recoverable=False,
+        details={"max_query_plans": max_query_plans, "planned_queries": planned_queries},
+    )

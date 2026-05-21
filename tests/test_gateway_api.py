@@ -24,6 +24,24 @@ def _profile():
     )
 
 
+def _profile_with_limits(limits):
+    profile = _profile()
+    return TenantScopeProfile(
+        tenant_id=profile.tenant_id,
+        profile_id=profile.profile_id,
+        allowed_root_domains=profile.allowed_root_domains,
+        allowed_domains=profile.allowed_domains,
+        allowed_ip_cidrs=profile.allowed_ip_cidrs,
+        allowed_org_names=profile.allowed_org_names,
+        default_scope=profile.default_scope,
+        allowed_engines=profile.allowed_engines,
+        provider_profile_id=profile.provider_profile_id,
+        limits=limits,
+        created_by=profile.created_by,
+        authorization_note=profile.authorization_note,
+    )
+
+
 def _api(tmp_path):
     return DiscoveryGatewayApi(
         profile=_profile(),
@@ -61,10 +79,79 @@ def test_create_discovery_task_queues_with_accepted_scope(tmp_path):
     assert type(response["status"]) is str
     assert response["accepted_scope"] == {"domains": ["vpn.example.org"]}
     assert response["rejected_scope"] == []
-    assert response["query_plan_summary"] == {"engines": ["fofa"], "planned_queries": 1}
+    assert response["query_plan_summary"] == {
+        "engines": ["fofa"],
+        "strategy": "baseline",
+        "planned_queries": 1,
+    }
     assert response["status_url"].endswith(response["task_id"])
     assert response["result_url"].endswith(f"{response['task_id']}/results")
     assert len(queue) == 1
+
+
+def test_create_discovery_task_accepts_easm_strategy_when_within_query_budget(tmp_path):
+    task_repo = FileTaskRepository(tmp_path / "tasks")
+    response = DiscoveryGatewayApi(
+        profile=_profile(),
+        source_client=FixtureSourceClient("tests/fixtures/fofa_results.json"),
+        task_repository=task_repo,
+        result_repository=FileResultRepository(tmp_path / "results"),
+        queue=InMemoryTaskQueue(),
+    ).create_task(
+        {
+            "profile_id": "scope_profile_001",
+            "requested_scope": {"root_domains": ["example.org"]},
+            "engines": ["fofa"],
+            "result_limit": 50,
+            "purpose": "toolbox_asset_discovery",
+            "discovery_strategy": "easm",
+        }
+    )
+
+    assert response["status"] == "queued"
+    assert response["query_plan_summary"] == {
+        "engines": ["fofa"],
+        "strategy": "easm",
+        "planned_queries": 3,
+    }
+    saved = task_repo.load("tenant_poc", response["task_id"])
+    assert saved["request"]["discovery_strategy"] == "easm"
+
+
+def test_create_discovery_task_rejects_unknown_discovery_strategy(tmp_path):
+    response = _api(tmp_path).create_task(
+        {
+            "profile_id": "scope_profile_001",
+            "requested_scope": {"root_domains": ["example.org"]},
+            "engines": ["fofa"],
+            "result_limit": 50,
+            "purpose": "toolbox_asset_discovery",
+            "discovery_strategy": "active",
+        }
+    )
+
+    assert response["status"] == "rejected"
+    assert response["errors"][0]["code"] == "invalid_discovery_strategy"
+
+
+def test_create_discovery_task_rejects_easm_strategy_over_query_budget(tmp_path):
+    response = DiscoveryGatewayApi(
+        profile=_profile_with_limits({"max_results_per_task": 100, "max_queries_per_task": 2}),
+        source_client=FixtureSourceClient("tests/fixtures/fofa_results.json"),
+        snapshot_dir=tmp_path,
+    ).create_task(
+        {
+            "profile_id": "scope_profile_001",
+            "requested_scope": {"root_domains": ["example.org"]},
+            "engines": ["fofa"],
+            "result_limit": 50,
+            "purpose": "toolbox_asset_discovery",
+            "discovery_strategy": "easm",
+        }
+    )
+
+    assert response["status"] == "rejected"
+    assert response["errors"][0]["code"] == "query_plan_budget_exceeded"
 
 
 def test_create_discovery_task_generates_unique_task_ids(tmp_path):
