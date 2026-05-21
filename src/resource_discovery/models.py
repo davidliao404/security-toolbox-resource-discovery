@@ -47,6 +47,9 @@ class SourceQueryPlan(Serializable):
     query_type: str
     page_limit: int = 10
     result_limit: int = 1000
+    stage: str = "seed"
+    query_intent: str | None = None
+    derived_from: list[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True)

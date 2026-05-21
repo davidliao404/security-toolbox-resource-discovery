@@ -6,6 +6,7 @@ from typing import Any
 
 from .freshness import build_freshness
 from .models import DiscoveredAsset, ExposedService, SourceEvidence, SourceQueryPlan
+from .ownership import score_ownership
 
 
 DEFAULT_SEEN_AT = "2026-05-17T10:00:00+08:00"
@@ -24,7 +25,12 @@ def _stable_id(prefix: str, *parts: Any) -> str:
     return f"{prefix}_{digest}"
 
 
-def normalize_fofa_results(task_id: str, plan: SourceQueryPlan, rows: list[dict]) -> NormalizedBatch:
+def normalize_fofa_results(
+    task_id: str,
+    plan: SourceQueryPlan,
+    rows: list[dict],
+    authorized_scope: dict[str, list[str]] | None = None,
+) -> NormalizedBatch:
     assets: list[DiscoveredAsset] = []
     services: list[ExposedService] = []
     evidences: list[SourceEvidence] = []
@@ -42,10 +48,30 @@ def normalize_fofa_results(task_id: str, plan: SourceQueryPlan, rows: list[dict]
         service_id = _stable_id("svc", task_id, domain or ip, port, protocol, service_name)
         evidence_id = _stable_id("ev", task_id, plan.plan_id, index)
 
+        normalized_field_names = [
+            "ip",
+            "host",
+            "domain",
+            "port",
+            "protocol",
+            "service",
+            "title",
+            "product",
+            "version",
+            "server",
+            "url",
+            "link",
+            "asn",
+            "org",
+            "country",
+            "country_name",
+            "header_hash",
+            "banner_hash",
+            "cname",
+            "lastupdatetime",
+        ]
         normalized_fields = [
-            field
-            for field in ["ip", "host", "port", "protocol", "service", "title", "product", "url", "link"]
-            if row.get(field) not in (None, "")
+            field for field in normalized_field_names if row.get(field) not in (None, "")
         ]
 
         evidences.append(
@@ -67,6 +93,15 @@ def normalize_fofa_results(task_id: str, plan: SourceQueryPlan, rows: list[dict]
                         "protocol": protocol,
                         "title": row.get("title"),
                         "product": row.get("product"),
+                        "version": row.get("version"),
+                        "server": row.get("server"),
+                        "asn": row.get("asn"),
+                        "org": row.get("org"),
+                        "country": row.get("country"),
+                        "country_name": row.get("country_name"),
+                        "header_hash": row.get("header_hash"),
+                        "banner_hash": row.get("banner_hash"),
+                        "cname": row.get("cname"),
                         "freshness": freshness,
                     }.items()
                     if value not in (None, "")
@@ -84,8 +119,12 @@ def normalize_fofa_results(task_id: str, plan: SourceQueryPlan, rows: list[dict]
                 ip=ip,
                 root_domain=row.get("root_domain"),
                 asn=row.get("asn"),
-                country_or_region=row.get("country_or_region"),
-                ownership_confidence=float(row.get("confidence", 0.7)),
+                country_or_region=row.get("country_or_region")
+                or row.get("country_name")
+                or row.get("country"),
+                ownership_confidence=score_ownership(row, authorized_scope)
+                if authorized_scope is not None
+                else float(row.get("confidence", 0.7)),
                 first_seen=row.get("first_seen") or seen_at,
                 last_seen=seen_at,
                 sources=[plan.source],

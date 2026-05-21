@@ -6,10 +6,10 @@ from pathlib import Path
 from .analysis import LlmRiskEnricher, apply_analysis
 from .analysis_config import TenantAnalysisConfig
 from .deduplicator import deduplicate_assets, deduplicate_services
+from .discovery_workflow import DiscoveryWorkflowConfig, build_query_plans
 from .fofa_client import FofaApiClient
 from .models import DiscoverySeed, SourceQueryPlan
 from .normalizer import normalize_fofa_results
-from .query_planner import plan_fofa_queries
 from .report_builder import build_exposure_report
 from .remediation import build_remediation_plan
 from .risk_hints import generate_risk_hints
@@ -42,6 +42,8 @@ def run_discovery(
     llm_model: str | None = None,
     llm_authorization_id: str | None = None,
     tenant_analysis_config: TenantAnalysisConfig | None = None,
+    discovery_strategy: str = "baseline",
+    max_query_plans: int = 30,
 ) -> dict:
     payload = json.loads(Path(seeds_path).read_text(encoding="utf-8"))
     task_id = payload.get("task_id", "dt_poc_001")
@@ -68,6 +70,8 @@ def run_discovery(
         llm_model=llm_model,
         llm_authorization_id=llm_authorization_id,
         tenant_analysis_config=tenant_analysis_config,
+        discovery_strategy=discovery_strategy,
+        max_query_plans=max_query_plans,
     )
 
 
@@ -92,6 +96,8 @@ def run_discovery_from_seeds(
     llm_model: str | None = None,
     llm_authorization_id: str | None = None,
     tenant_analysis_config: TenantAnalysisConfig | None = None,
+    discovery_strategy: str = "baseline",
+    max_query_plans: int = 30,
 ) -> dict:
     analysis_options = _resolve_analysis_options(
         tenant_id=tenant_id,
@@ -104,7 +110,13 @@ def run_discovery_from_seeds(
         tenant_analysis_config=tenant_analysis_config,
     )
     validate_seeds(seeds)
-    plans = plan_fofa_queries(task_id, seeds, page_limit=page_limit, result_limit=result_limit)
+    workflow_config = DiscoveryWorkflowConfig(
+        strategy=discovery_strategy,
+        max_query_plans=max_query_plans,
+        page_limit=page_limit,
+        result_limit=result_limit,
+    )
+    plans = build_query_plans(task_id, seeds, workflow_config)
     enforce_plan_quota(plans)
 
     if mode == "dry-run":

@@ -22,6 +22,21 @@ def test_dry_run_returns_query_plans_without_assets_or_live_api():
     assert payload["risk_hints"] == []
 
 
+def test_dry_run_supports_opt_in_easm_strategy():
+    payload = run_discovery(
+        seeds_path="examples/seeds.json",
+        mode="dry-run",
+        discovery_strategy="easm",
+        max_query_plans=10,
+        page_limit=1,
+    )
+
+    assert payload["mode"] == "dry-run"
+    assert "certificate_domain_match" in [
+        plan["query_intent"] for plan in payload["query_plans"]
+    ]
+
+
 def test_fixture_mode_requires_fixture_path():
     with pytest.raises(ValueError, match="fixture_path"):
         run_discovery(seeds_path="examples/seeds.json", mode="fixture", fixture_path=None)
