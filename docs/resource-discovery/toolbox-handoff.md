@@ -261,6 +261,42 @@ GET /api/v1/discovery/tasks/{task_id}/results?result_type=assets&cursor=&limit=1
 - `limit` 默认 100，工具箱不应假设可以无限放大。
 - 同一任务完成后，同一个 cursor 应返回稳定结果。
 
+### 6.1 ownership confidence 展示建议
+
+`ownership_confidence` 用来表达“这条被动发现结果有多像客户资产”，不是最终资产确认结论。
+
+建议工具箱展示为三档：
+
+| 分数区间 | 展示建议 | 默认动作 |
+| --- | --- | --- |
+| `0.9` 及以上 | 高可信归属 | 可进入本地资产候选库，等待验证或确认 |
+| `0.7` 至 `0.89` | 候选归属 | 展示给安全人员复核 |
+| 低于 `0.7` | 弱相关线索 | 默认折叠或放入低优先级复核队列 |
+
+不要把高分写成“已确认属于客户”。推荐文案是：“高可信归属线索，建议本地验证后确认。”
+
+### 6.2 扩展证据字段消费建议
+
+`source_evidence.evidence` 可能包含：
+
+- `server`、`product`、`version`：用于产品识别和后续本地验证任务。
+- `asn`、`org`、`cname`：用于归属复核，尤其是云厂商、CDN 和托管场景。
+- `header_hash`、`banner_hash`：用于相似服务归并和重复线索压缩。
+- `lastupdatetime`、`freshness`：用于判断情报新鲜度，不代表当前在线状态。
+
+工具箱长期资产库建议优先保存归一化后的 `assets` 和 `services`。`source_evidence` 可以按客户策略保存，用于售后排查、证据链和复核；如果客户对原始证据留存敏感，可以只保存摘要字段和 `evidence_ids`。
+
+### 6.3 变更检测建议
+
+网关结果按任务短期保存，工具箱长期保存资产库。因此“新增/消失/变化”的最终展示建议由工具箱基于两次任务结果计算：
+
+- 新增资产：本次 `asset_id` 存在，上次不存在。
+- 移除资产：上次存在，本次不存在；不要直接写成资产下线，应写“本次未在外部测绘结果中观察到”。
+- 新增服务：本次 `service_id` 存在，上次不存在。
+- 移除服务：上次存在，本次不存在；建议触发本地复核。
+
+本仓库提供 `compare_snapshots(before, after)` 作为第一版 ID 级差异比较工具，可供网关内部或工具箱适配层复用。
+
 ## 7. freshness 解释
 
 `freshness` 表示外部测绘平台返回的观测或更新时间，不表示当前资产一定在线。
@@ -313,6 +349,11 @@ GET /api/v1/discovery/tasks/{task_id}/results?result_type=assets&cursor=&limit=1
 - `service`
 - `title`
 - `product`
+- `version`
+- `server`
+- `asn`
+- `org`
+- `cname`
 - `freshness`
 - `sources`
 - `evidence_ids`
@@ -327,6 +368,8 @@ GET /api/v1/discovery/tasks/{task_id}/results?result_type=assets&cursor=&limit=1
 - `raw_reference`
 - `normalized_fields`
 - 供应商返回的证据摘要
+- `header_hash`
+- `banner_hash`
 
 不应保存：
 

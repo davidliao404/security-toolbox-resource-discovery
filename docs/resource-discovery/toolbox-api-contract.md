@@ -341,6 +341,7 @@ GET /api/v1/discovery/tasks/{task_id}/results?result_type=assets&cursor=&limit=1
       "service": "vpn",
       "title": "VPN Portal",
       "product": "ExampleVPN",
+      "version": "1.2.3",
       "freshness": {
         "status": "fresh",
         "last_observed_at": "2026-05-19T12:00:00+00:00",
@@ -361,11 +362,35 @@ GET /api/v1/discovery/tasks/{task_id}/results?result_type=assets&cursor=&limit=1
       "first_seen": "2026-05-19T12:00:00+00:00",
       "last_seen": "2026-05-19T12:00:00+00:00",
       "confidence": 0.7,
-      "normalized_fields": ["ip", "host", "port"],
+      "normalized_fields": [
+        "ip",
+        "host",
+        "domain",
+        "port",
+        "protocol",
+        "title",
+        "product",
+        "version",
+        "server",
+        "asn",
+        "org",
+        "header_hash",
+        "banner_hash",
+        "cname",
+        "lastupdatetime"
+      ],
       "evidence": {
         "ip": "203.0.113.10",
         "domain": "vpn.example.com",
         "port": 443,
+        "product": "ExampleVPN",
+        "version": "1.2.3",
+        "server": "nginx",
+        "asn": "64500",
+        "org": "Example Limited",
+        "header_hash": "header_hash_sample",
+        "banner_hash": "banner_hash_sample",
+        "cname": "edge.example-cdn.net",
         "freshness": {
           "status": "fresh",
           "meaning": "provider_observation_time_not_liveness_proof"
@@ -387,6 +412,32 @@ GET /api/v1/discovery/tasks/{task_id}/results?result_type=assets&cursor=&limit=1
 - `risk_hints`、`remediation`、`report` 可作为后续或兼容接口保留。
 - 工具箱应将需要长期保留的 `assets` 和 `services` 写入本地。
 - `source_evidence` 可按客户策略短期或长期保留。
+
+### 6.1 ownership confidence
+
+`ownership_confidence` 是网关根据授权范围和被动证据给出的归属置信度，不是资产归属的最终确认。
+
+首批语义：
+
+| 分数区间 | 含义 | 工具箱建议 |
+| --- | --- | --- |
+| `0.9` 及以上 | 域名或根域名直接命中授权范围 | 可作为高可信资产导入，仍保留人工/本地验证状态 |
+| `0.7` 至 `0.89` | 组织名、证书主体或 ASN 组织命中 | 作为候选资产展示，建议复核归属 |
+| 低于 `0.7` | 只有弱相关或共享基础设施线索 | 默认不自动确认归属，需人工或本地验证 |
+
+工具箱不应仅凭 `ownership_confidence` 自动创建已确认资产。它适合用于排序、筛选和展示“待确认资产”。
+
+### 6.2 source evidence 扩展字段
+
+当供应商返回对应字段时，网关会在 `source_evidence.evidence` 中保留以下被动证据字段：
+
+- 基础定位：`ip`、`domain`、`port`、`protocol`、`link`。
+- 页面与服务：`title`、`product`、`version`、`server`。
+- 网络与组织：`asn`、`org`、`country`、`country_name`、`cname`。
+- 指纹摘要：`header_hash`、`banner_hash`。
+- 时间语义：`lastupdatetime`、`freshness`。
+
+这些字段用于工具箱复核、归并和本地验证任务编排。它们来自外部测绘平台的被动观测，不代表网关已经执行主动验证。
 
 ## 7. freshness 语义
 

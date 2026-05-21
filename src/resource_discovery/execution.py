@@ -44,6 +44,7 @@ def run_discovery(
     tenant_analysis_config: TenantAnalysisConfig | None = None,
     discovery_strategy: str = "baseline",
     max_query_plans: int = 30,
+    authorized_scope: dict[str, list[str]] | None = None,
 ) -> dict:
     payload = json.loads(Path(seeds_path).read_text(encoding="utf-8"))
     task_id = payload.get("task_id", "dt_poc_001")
@@ -72,6 +73,7 @@ def run_discovery(
         tenant_analysis_config=tenant_analysis_config,
         discovery_strategy=discovery_strategy,
         max_query_plans=max_query_plans,
+        authorized_scope=authorized_scope,
     )
 
 
@@ -98,6 +100,7 @@ def run_discovery_from_seeds(
     tenant_analysis_config: TenantAnalysisConfig | None = None,
     discovery_strategy: str = "baseline",
     max_query_plans: int = 30,
+    authorized_scope: dict[str, list[str]] | None = None,
 ) -> dict:
     analysis_options = _resolve_analysis_options(
         tenant_id=tenant_id,
@@ -137,6 +140,7 @@ def run_discovery_from_seeds(
             llm_provider=analysis_options["llm_provider"],
             llm_model=analysis_options["llm_model"],
             llm_authorization_id=analysis_options["llm_authorization_id"],
+            authorized_scope=authorized_scope,
         )
     if mode == "live":
         if not allow_live_fofa:
@@ -158,6 +162,7 @@ def run_discovery_from_seeds(
                 llm_provider=analysis_options["llm_provider"],
                 llm_model=analysis_options["llm_model"],
                 llm_authorization_id=analysis_options["llm_authorization_id"],
+                authorized_scope=authorized_scope,
             )
         api_client = FofaApiClient(email=fofa_email, key=fofa_key or "", base_url=fofa_base_url)
         return _execute_with_client(
@@ -173,6 +178,7 @@ def run_discovery_from_seeds(
             llm_provider=analysis_options["llm_provider"],
             llm_model=analysis_options["llm_model"],
             llm_authorization_id=analysis_options["llm_authorization_id"],
+            authorized_scope=authorized_scope,
         )
     raise ValueError(f"Unsupported execution mode: {mode}")
 
@@ -203,6 +209,7 @@ def _execute_with_client(
     llm_provider: str | None = None,
     llm_model: str | None = None,
     llm_authorization_id: str | None = None,
+    authorized_scope: dict[str, list[str]] | None = None,
 ) -> dict:
     assets = []
     services = []
@@ -225,7 +232,12 @@ def _execute_with_client(
             )
             continue
         completed_queries += 1
-        batch = normalize_fofa_results(task_id, plan, rows)
+        batch = normalize_fofa_results(
+            task_id,
+            plan,
+            rows,
+            authorized_scope=authorized_scope,
+        )
         assets.extend(batch.assets)
         services.extend(batch.services)
         evidences.extend(batch.evidences)

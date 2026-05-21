@@ -66,6 +66,25 @@ def test_task_worker_uses_saved_discovery_strategy(tmp_path):
     assert loaded["task"]["quota_usage"]["planned_queries"] == 3
 
 
+def test_task_worker_scores_ownership_against_accepted_scope(tmp_path):
+    task_repo = FileTaskRepository(tmp_path / "tasks")
+    result_repo = FileResultRepository(tmp_path / "results")
+    task_repo.create(_queued_payload())
+    queue = InMemoryTaskQueue()
+    queue.enqueue(TaskWorkItem(tenant_id="tenant_poc", task_id="dt_worker_001"))
+    worker = TaskWorker(
+        task_repository=task_repo,
+        result_repository=result_repo,
+        queue=queue,
+        source_client=FixtureSourceClient("tests/fixtures/fofa_results.json"),
+    )
+
+    worker.run_once()
+
+    results = result_repo.load_results("tenant_poc", "dt_worker_001", cursor=None, limit=10)
+    assert {asset["ownership_confidence"] for asset in results["assets"]} == {0.95}
+
+
 def test_task_worker_run_once_marks_task_failed_on_exception(tmp_path):
     class FailingClient:
         def fetch(self, plan):
