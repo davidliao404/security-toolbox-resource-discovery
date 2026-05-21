@@ -3,7 +3,12 @@ name = "resource-discovery-poc"
 version = "0.1.0"
 description = "Offline-first internet exposure resource discovery PoC for Security Toolbox."
 requires-python = ">=3.11"
-dependencies = ["PyYAML>=6.0"]
+dependencies = [
+  "PyYAML>=6.0",
+  "fastapi>=0.111",
+  "uvicorn>=0.30",
+  "redis>=5.0",
+]
 
 [build-system]
 requires = ["setuptools>=68"]
@@ -16,7 +21,7 @@ where = ["src"]
 resource_discovery = ["risk_rules.yml"]
 
 [project.optional-dependencies]
-dev = ["pytest>=8.0"]
+dev = ["pytest>=8.0", "httpx>=0.27"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
