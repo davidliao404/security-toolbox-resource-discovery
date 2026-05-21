@@ -22,7 +22,7 @@
 | 审计 | `PoC` | 接入集中审计、权限检索和留存策略 |
 | 留存策略 | `PoC` | 接入定时清理任务和客户级策略 |
 | FOFA/uncover | `PoC` | 明确生产供应商配置、限速、重试和降级 |
-| 鉴权签名 | `PoC` | 接入真实 HTTP 服务中间件和客户端密钥管理 |
+| 鉴权签名 | `Integration` | FastAPI 联调版已验签；生产需接入客户端密钥管理 |
 | 运维观测 | `Pending` | 增加指标、日志、告警和追踪 |
 | 双区域合规 | `Decision` | 确认香港与内地区域部署边界 |
 
@@ -32,7 +32,7 @@
 - [x] 防重放：nonce 在时间窗口内只能使用一次。
 - [x] 请求体参与签名，避免中间层篡改范围和 `result_limit`。
 - [x] 无框架 HTTP adapter 已接入签名校验和核心路由语义。
-- [ ] 将签名校验接入真实 HTTP 服务中间件。
+- [x] FastAPI 联调交付版已接入 HTTP 层签名校验。
 - [ ] 客户端密钥按租户和工具箱实例隔离。
 - [ ] 支持客户端密钥轮换。
 - [ ] 鉴权失败不返回内部配置或签名计算细节。
@@ -69,6 +69,7 @@
 
 - [x] API 已采用异步 `queued` 模式。
 - [x] PoC worker 可消费任务并写入结果。
+- [x] 联调交付版提供 SQLite 队列和 Redis 队列适配器。
 - [ ] 生产队列使用 Redis、RabbitMQ、SQS、Celery broker 或等效组件。
 - [ ] worker 支持并发上限、租户级限流和供应商级限流。
 - [ ] 任务重试策略区分可恢复错误和不可恢复错误。
@@ -80,6 +81,7 @@
 
 - [x] PoC 文件 repository 已拆分任务元数据和结果数据。
 - [x] 结果按 `assets`、`services`、`source_evidence` 类型分页。
+- [x] 联调交付版提供 SQLite task/result/scope/nonce/audit 持久化实现。
 - [ ] 生产任务元数据表：任务状态、租户、profile、配额、错误、时间戳。
 - [ ] 生产结果表或对象存储：资产、服务、证据分别存储。
 - [ ] 对 `tenant_id + task_id`、`tenant_id + created_at` 建索引。

@@ -103,6 +103,45 @@ python -m venv .venv
 .\.venv\Scripts\python.exe -m pytest -q
 ```
 
+## 工具箱联调交付版
+
+安装联调依赖：
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install -e ".[dev]"
+```
+
+启动 HTTP 服务：
+
+```powershell
+.\.venv\Scripts\python.exe -m uvicorn resource_discovery.http_app:app --host 127.0.0.1 --port 8000
+```
+
+单独运行一轮 worker：
+
+```powershell
+.\.venv\Scripts\python.exe -m resource_discovery.worker_cli --sqlite-path artifacts\integration\resource-discovery.sqlite3
+```
+
+生成签名：
+
+```powershell
+$timestamp = "2026-05-22T10:00:00+00:00"
+$nonce = "nonce-demo-001"
+$signature = .\.venv\Scripts\python.exe .\scripts\sign_request.py --secret local-dev-secret --method GET --path /api/v1/discovery/scope-profile --timestamp $timestamp --nonce $nonce
+```
+
+查询授权范围：
+
+```powershell
+curl.exe http://127.0.0.1:8000/api/v1/discovery/scope-profile `
+  -H "X-Tenant-Id: tenant_poc" `
+  -H "X-Client-Id: toolbox" `
+  -H "X-Timestamp: $timestamp" `
+  -H "X-Nonce: $nonce" `
+  -H "X-Signature: $signature"
+```
+
 运行离线 PoC：
 
 ```powershell

@@ -401,3 +401,14 @@ GET /api/v1/discovery/tasks/{task_id}/results?result_type=assets&cursor=&limit=1
 - 能解释 freshness，不把被动发现结论写成漏洞确认。
 - 能将需要长期使用的资产和服务保存到本地。
 - 不在日志、浏览器存储或数据库中保存 FOFA API Key。
+
+## 12. FastAPI 联调排查
+
+| 现象 | 检查项 |
+| --- | --- |
+| `missing_auth_header` | 五个签名请求头是否全部发送 |
+| `invalid_signature` | 签名 path 是否只包含路径、不包含域名；body 字节是否与实际发送一致 |
+| `replay_detected` | 每次请求必须使用新的 nonce |
+| `scope_out_of_bounds` | 工具箱提交范围是否超过后台 scope profile |
+| 状态一直 `queued` | worker 是否启动，队列 backend 是否和 API 使用同一 SQLite/Redis |
+| 结果为空 | 任务是否进入 `success` 或 `partial_success`，`result_type` 是否正确 |
