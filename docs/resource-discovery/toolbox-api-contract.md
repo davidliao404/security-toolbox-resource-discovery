@@ -39,7 +39,7 @@
 - `X-Nonce`
 - `X-Signature`
 
-POC handler 暂不实现签名校验，但 API 契约按生产要求保留这些字段。
+FastAPI 联调交付版已经在 HTTP 层实现 HMAC-SHA256 请求验签。Local 示例使用 `artifacts/integration/client-secrets.json` 或内置开发占位密钥；生产部署必须从客户批准的密钥系统解析客户端密钥。
 
 ### 2.2.1 签名算法
 
