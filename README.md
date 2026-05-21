@@ -31,6 +31,49 @@
 - `docs/resource-discovery/toolbox-handoff.md`
 - `docs/resource-discovery/production-readiness-checklist.md`
 
+## 专业被动 EASM 工作流
+
+当前网关边界保持不变：云端只做授权范围内的被动发现、证据归一化、短期结果和审计；长期资产库、本地探活、漏洞验证、弱口令检查、处置闭环和报告归档仍由安全工具箱负责。
+
+推荐工具箱团队按三步联调：
+
+1. 使用 `discovery_strategy="baseline"` 打通基本链路。
+   - 适合低配额、首次联调和普通客户。
+   - 只生成基础被动查询，例如根域名、组织名和 IP 段。
+   - 返回结果包含 `assets`、`services`、`source_evidence`、`ownership_confidence` 和 `freshness`。
+
+2. 使用 `discovery_strategy="easm"` 做更完整的被动发现。
+   - 仍然不执行云端主动扫描或漏洞验证。
+   - 会在授权范围内生成更多 FOFA 查询计划，例如 `domain`、`host` 后缀、`cert.domain`、`cert.subject.org`、`title` 和 `org`。
+   - 可能因为租户 `max_queries_per_task` 不足被拒绝，此时工具箱应提示缩小范围或回退 `baseline`。
+
+3. 在工具箱本地消费结果。
+   - `ownership_confidence` 只表示归属置信度，不是最终资产确认。
+   - `freshness` 只表示外部测绘平台观测时间，不表示当前在线状态。
+   - `source_evidence.evidence` 可能包含 `server`、`product`、`version`、`asn`、`org`、`cname`、`header_hash`、`banner_hash` 等复核字段。
+   - 新增或消失的资产/服务应写成“本次外部测绘是否观察到”，不要直接写成“上线”或“下线”。
+   - 本仓库提供 `compare_snapshots(before, after)` 作为第一版 ID 级变更检测工具。
+
+网关 API 请求示例：
+
+```json
+{
+  "profile_id": "scope_profile_001",
+  "requested_scope": {
+    "root_domains": ["example.com"]
+  },
+  "engines": ["fofa"],
+  "discovery_strategy": "easm",
+  "result_limit": 100,
+  "purpose": "toolbox_asset_discovery"
+}
+```
+
+常见策略错误：
+
+- `invalid_discovery_strategy`：策略不是 `baseline` 或 `easm`。
+- `query_plan_budget_exceeded`：策略展开后的查询数超过租户 `max_queries_per_task`。
+
 ## 本地运行
 
 创建虚拟环境并安装测试依赖：

@@ -781,7 +781,7 @@ Expected: PASS.
 **Files:**
 - All modified files.
 
-- [ ] **Step 1: Run whitespace check**
+- [x] **Step 1: Run whitespace check**
 
 Run:
 
@@ -791,7 +791,7 @@ git diff --check
 
 Expected: no output.
 
-- [ ] **Step 2: Run full test suite**
+- [x] **Step 2: Run full test suite**
 
 Run:
 
@@ -801,7 +801,7 @@ Run:
 
 Expected: all tests pass.
 
-- [ ] **Step 3: Review git diff**
+- [x] **Step 3: Review git diff**
 
 Run:
 
@@ -812,7 +812,7 @@ git diff
 
 Expected: changes match this plan and do not add active scanning, vulnerability verification, provider secrets, or long-term inventory behavior.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 Run:
 
