@@ -11,8 +11,9 @@ class GatewaySettings:
     sqlite_path: str = "artifacts/integration/resource-discovery.sqlite3"
     queue_backend: str = "sqlite"
     redis_url: str = "redis://localhost:6379/0"
-    client_secrets_file: str = "artifacts/integration/client-secrets.json"
+    client_secrets_file: str = "config/client-secrets.json"
     scope_profile_seed: str = "examples/scope_profile.json"
+    fixture_path: str = "tests/fixtures/fofa_results.json"
     result_limit_default: int = 100
     result_limit_max: int = 500
     nonce_window_seconds: int = 300
@@ -41,9 +42,10 @@ def load_settings() -> GatewaySettings:
         redis_url=os.getenv("RESOURCE_DISCOVERY_REDIS_URL", "redis://localhost:6379/0"),
         client_secrets_file=os.getenv(
             "RESOURCE_DISCOVERY_CLIENT_SECRETS_FILE",
-            "artifacts/integration/client-secrets.json",
+            "config/client-secrets.json",
         ),
         scope_profile_seed=os.getenv("RESOURCE_DISCOVERY_SCOPE_PROFILE_SEED", "examples/scope_profile.json"),
+        fixture_path=os.getenv("RESOURCE_DISCOVERY_FIXTURE_PATH", "tests/fixtures/fofa_results.json"),
         result_limit_default=int(os.getenv("RESOURCE_DISCOVERY_RESULT_LIMIT_DEFAULT", "100")),
         result_limit_max=int(os.getenv("RESOURCE_DISCOVERY_RESULT_LIMIT_MAX", "500")),
         nonce_window_seconds=int(os.getenv("RESOURCE_DISCOVERY_NONCE_WINDOW_SECONDS", "300")),

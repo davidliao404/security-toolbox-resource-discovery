@@ -412,3 +412,28 @@ GET /api/v1/discovery/tasks/{task_id}/results?result_type=assets&cursor=&limit=1
 | `scope_out_of_bounds` | 工具箱提交范围是否超过后台 scope profile |
 | 状态一直 `queued` | worker 是否启动，队列 backend 是否和 API 使用同一 SQLite/Redis |
 | 结果为空 | 任务是否进入 `success` 或 `partial_success`，`result_type` 是否正确 |
+
+## 13. Docker Compose 联调
+
+联调环境默认使用 SQLite、配置文件密钥和 docker compose：
+
+```powershell
+Copy-Item .\config\client-secrets.example.json .\config\client-secrets.json
+docker compose up --build
+```
+
+compose 会启动两个服务：
+
+| 服务 | 用途 |
+| --- | --- |
+| `api` | FastAPI 网关，监听 `127.0.0.1:8000` |
+| `worker` | 循环消费 SQLite 队列中的任务并写入结果 |
+
+默认配置：
+
+- SQLite 数据库在 named volume `discovery-data` 中，容器路径 `/data/resource-discovery.sqlite3`。
+- client secret 从 `/app/config/client-secrets.json` 读取，示例密钥为 `local-dev-secret`。
+- scope profile 使用 `/app/examples/scope_profile.json`。
+- fixture 使用 `/app/tests/fixtures/fofa_results.json`，不会调用真实 FOFA。
+
+联调时如果修改 `config/client-secrets.json`，工具箱请求签名使用的 secret 必须同步更新。

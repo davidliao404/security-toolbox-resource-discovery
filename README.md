@@ -131,6 +131,22 @@ $nonce = "nonce-demo-001"
 $signature = .\.venv\Scripts\python.exe .\scripts\sign_request.py --secret local-dev-secret --method GET --path /api/v1/discovery/scope-profile --timestamp $timestamp --nonce $nonce
 ```
 
+
+使用 docker compose 启动 API 与 worker：
+
+```powershell
+Copy-Item .\config\client-secrets.example.json .\config\client-secrets.json
+# 如需修改联调密钥，编辑 config\client-secrets.json，并同步签名脚本里的 --secret 参数。
+docker compose up --build
+```
+
+compose 默认使用：
+
+- SQLite volume：`discovery-data:/data/resource-discovery.sqlite3`
+- 客户端密钥配置：`config/client-secrets.example.json` 挂载为容器内 `/app/config/client-secrets.json`
+- API：`http://127.0.0.1:8000`
+- worker：循环消费同一个 SQLite 队列表
+
 查询授权范围：
 
 ```powershell

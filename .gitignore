@@ -33,3 +33,7 @@ Thumbs.db
 # Local worktrees
 .worktrees/
 worktrees/
+
+# Local integration secrets
+config/client-secrets.json
+!config/client-secrets.example.json

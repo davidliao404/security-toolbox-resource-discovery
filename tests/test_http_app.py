@@ -3,7 +3,8 @@ from datetime import datetime, timezone
 
 from fastapi.testclient import TestClient
 
-from resource_discovery.http_app import create_app
+from resource_discovery.config import GatewaySettings
+from resource_discovery.http_app import create_app, create_app_from_settings
 from resource_discovery.request_auth import build_signature
 
 
@@ -81,3 +82,28 @@ def test_create_task_rejects_out_of_scope_request(tmp_path):
     assert response.status_code == 200
     assert response.json()["status"] == "rejected"
     assert response.json()["errors"][0]["code"] == "scope_out_of_bounds"
+
+
+def test_create_app_from_settings_uses_configured_secret_file_and_sqlite_nonce(tmp_path):
+    secrets_path = tmp_path / "client-secrets.json"
+    secrets_path.write_text(json.dumps({"tenant_poc": {"toolbox": "file-secret"}}), encoding="utf-8")
+    settings = GatewaySettings(
+        sqlite_path=str(tmp_path / "gateway.sqlite3"),
+        client_secrets_file=str(secrets_path),
+        scope_profile_seed="examples/scope_profile.json",
+    )
+    path = "/api/v1/discovery/scope-profile"
+    app = create_app_from_settings(
+        settings,
+        now=lambda: datetime(2026, 5, 22, 10, 0, tzinfo=timezone.utc),
+    )
+    client = TestClient(app)
+    headers = _headers("file-secret", "GET", path)
+
+    first = client.get(path, headers=headers)
+    replay = client.get(path, headers=headers)
+
+    assert first.status_code == 200
+    assert first.json()["tenant_id"] == "tenant_poc"
+    assert replay.status_code == 401
+    assert replay.json()["errors"][0]["code"] == "replay_detected"

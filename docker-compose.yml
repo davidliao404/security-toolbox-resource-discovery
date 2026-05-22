@@ -1,0 +1,42 @@
+services:
+  api:
+    build: .
+    command: python -m uvicorn resource_discovery.http_app:app --host 0.0.0.0 --port 8000
+    ports:
+      - "8000:8000"
+    environment:
+      RESOURCE_DISCOVERY_ENV: docker-compose
+      RESOURCE_DISCOVERY_SQLITE_PATH: /data/resource-discovery.sqlite3
+      RESOURCE_DISCOVERY_QUEUE_BACKEND: sqlite
+      RESOURCE_DISCOVERY_CLIENT_SECRETS_FILE: /app/config/client-secrets.json
+      RESOURCE_DISCOVERY_SCOPE_PROFILE_SEED: /app/examples/scope_profile.json
+      RESOURCE_DISCOVERY_FIXTURE_PATH: /app/tests/fixtures/fofa_results.json
+      RESOURCE_DISCOVERY_NONCE_WINDOW_SECONDS: "300"
+    volumes:
+      - discovery-data:/data
+      - ./config/client-secrets.example.json:/app/config/client-secrets.json:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=2).read()"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  worker:
+    build: .
+    command: python -m resource_discovery.worker_cli --sqlite-path /data/resource-discovery.sqlite3 --fixture /app/tests/fixtures/fofa_results.json --loop --interval-seconds 2
+    environment:
+      RESOURCE_DISCOVERY_ENV: docker-compose
+      RESOURCE_DISCOVERY_SQLITE_PATH: /data/resource-discovery.sqlite3
+      RESOURCE_DISCOVERY_QUEUE_BACKEND: sqlite
+      RESOURCE_DISCOVERY_CLIENT_SECRETS_FILE: /app/config/client-secrets.json
+      RESOURCE_DISCOVERY_SCOPE_PROFILE_SEED: /app/examples/scope_profile.json
+      RESOURCE_DISCOVERY_FIXTURE_PATH: /app/tests/fixtures/fofa_results.json
+    volumes:
+      - discovery-data:/data
+      - ./config/client-secrets.example.json:/app/config/client-secrets.json:ro
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  discovery-data:

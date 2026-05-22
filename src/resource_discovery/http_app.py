@@ -1,19 +1,21 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import json
 from pathlib import Path
 from typing import Any, Callable
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
-from .auth_http import authenticate_http_request
+from .auth_http import ClientSecretResolver, FileClientSecretResolver, authenticate_http_request
+from .config import GatewaySettings, load_settings
 from .gateway_api import DiscoveryGatewayApi
 from .queue_backends import SQLiteTaskQueue
-from .request_auth import AuthError, InMemoryNonceStore
+from .request_auth import AuthError, InMemoryNonceStore, NonceStore
 from .scope_guard import TenantScopeProfile
 from .source_client import FixtureSourceClient, SourceClient
-from .sqlite_store import SQLiteResultRepository, SQLiteTaskRepository, initialize_sqlite
+from .sqlite_store import SQLiteNonceRepository, SQLiteResultRepository, SQLiteTaskRepository, initialize_sqlite
 
 
 def _default_profile() -> TenantScopeProfile:
@@ -43,10 +45,17 @@ class DictSecretResolver:
             raise AuthError("Unknown client credentials", code="unknown_client") from None
 
 
+def _load_profile(path: str | Path) -> TenantScopeProfile:
+    payload = json.loads(Path(path).read_text(encoding="utf-8"))
+    return TenantScopeProfile(**payload)
+
+
 def create_app(
     *,
     sqlite_path: str | Path,
-    client_secrets: dict[str, dict[str, str]],
+    client_secrets: dict[str, dict[str, str]] | None = None,
+    client_secret_resolver: ClientSecretResolver | None = None,
+    nonce_store: NonceStore | None = None,
     now: Callable[[], datetime] | None = None,
     profile: TenantScopeProfile | None = None,
     source_client: SourceClient | None = None,
@@ -63,8 +72,8 @@ def create_app(
         result_repository=result_repository,
         queue=queue,
     )
-    resolver = DictSecretResolver(client_secrets)
-    nonce_store = InMemoryNonceStore()
+    resolver = client_secret_resolver or DictSecretResolver(client_secrets or {})
+    nonce_store = nonce_store or InMemoryNonceStore()
     clock = now or (lambda: datetime.now(timezone.utc))
     app.state.gateway_api = gateway_api
     app.state.queue = queue
@@ -144,7 +153,20 @@ def create_app(
     return app
 
 
-app = create_app(
-    sqlite_path="artifacts/integration/resource-discovery.sqlite3",
-    client_secrets={"tenant_poc": {"toolbox": "local-dev-secret"}},
-)
+def create_app_from_settings(
+    settings: GatewaySettings | None = None,
+    *,
+    now: Callable[[], datetime] | None = None,
+) -> FastAPI:
+    resolved = settings or load_settings()
+    return create_app(
+        sqlite_path=resolved.sqlite_path,
+        client_secret_resolver=FileClientSecretResolver(resolved.client_secrets_file),
+        nonce_store=SQLiteNonceRepository(resolved.sqlite_path, window_seconds=resolved.nonce_window_seconds),
+        now=now,
+        profile=_load_profile(resolved.scope_profile_seed),
+        source_client=FixtureSourceClient(Path(resolved.fixture_path)),
+    )
+
+
+app = create_app_from_settings()
