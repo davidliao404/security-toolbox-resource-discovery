@@ -1,0 +1,88 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: resource_discovery
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d resource_discovery"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    volumes:
+      - prodlike-postgres:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  migrate:
+    build: .
+    command: python -m resource_discovery.ops_cli migrate --database-url postgresql+psycopg://postgres:postgres@postgres:5432/resource_discovery
+    environment:
+      RESOURCE_DISCOVERY_ENV: prodlike
+      RESOURCE_DISCOVERY_DATABASE_URL: postgresql+psycopg://postgres:postgres@postgres:5432/resource_discovery
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    build: .
+    command: python -m uvicorn resource_discovery.http_app:app --host 0.0.0.0 --port 8000
+    ports:
+      - "8000:8000"
+    environment:
+      RESOURCE_DISCOVERY_ENV: prodlike
+      RESOURCE_DISCOVERY_STORAGE_BACKEND: postgres
+      RESOURCE_DISCOVERY_DATABASE_URL: postgresql+psycopg://postgres:postgres@postgres:5432/resource_discovery
+      RESOURCE_DISCOVERY_QUEUE_BACKEND: redis
+      RESOURCE_DISCOVERY_REDIS_URL: redis://redis:6379/0
+      RESOURCE_DISCOVERY_CLIENT_SECRETS_FILE: /app/config/client-secrets.json
+      RESOURCE_DISCOVERY_SCOPE_PROFILE_SEED: /app/examples/scope_profile.json
+      RESOURCE_DISCOVERY_FIXTURE_PATH: /app/tests/fixtures/fofa_results.json
+      RESOURCE_DISCOVERY_METRICS_ENABLED: "true"
+      RESOURCE_DISCOVERY_LOG_FORMAT: json
+    volumes:
+      - ./config/client-secrets.example.json:/app/config/client-secrets.json:ro
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/readyz', timeout=2).read()"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  worker:
+    build: .
+    command: python -m resource_discovery.worker_cli --settings-env prodlike --loop --interval-seconds 2
+    environment:
+      RESOURCE_DISCOVERY_ENV: prodlike
+      RESOURCE_DISCOVERY_STORAGE_BACKEND: postgres
+      RESOURCE_DISCOVERY_DATABASE_URL: postgresql+psycopg://postgres:postgres@postgres:5432/resource_discovery
+      RESOURCE_DISCOVERY_QUEUE_BACKEND: redis
+      RESOURCE_DISCOVERY_REDIS_URL: redis://redis:6379/0
+      RESOURCE_DISCOVERY_CLIENT_SECRETS_FILE: /app/config/client-secrets.json
+      RESOURCE_DISCOVERY_SCOPE_PROFILE_SEED: /app/examples/scope_profile.json
+      RESOURCE_DISCOVERY_FIXTURE_PATH: /app/tests/fixtures/fofa_results.json
+      RESOURCE_DISCOVERY_LOG_FORMAT: json
+    volumes:
+      - ./config/client-secrets.example.json:/app/config/client-secrets.json:ro
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  prodlike-postgres:
+

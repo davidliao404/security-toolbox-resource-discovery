@@ -8,6 +8,9 @@ WORKDIR /app
 COPY pyproject.toml README.md ./
 COPY src ./src
 COPY examples ./examples
+COPY config ./config
+COPY alembic.ini ./
+COPY migrations ./migrations
 COPY tests/fixtures ./tests/fixtures
 COPY scripts ./scripts
 
