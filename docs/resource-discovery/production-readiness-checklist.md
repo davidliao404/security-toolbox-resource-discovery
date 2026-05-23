@@ -221,6 +221,8 @@
 - WSL command: `powershell -ExecutionPolicy Bypass -File scripts\wsl_bootstrap.ps1`
 - WSL result: WSL platform components and Ubuntu package installation were triggered; Windows reported that the operation requires a restart before the distribution can launch. After restart, rerun the same command to install Docker Engine, Docker Compose plugin, PostgreSQL client tools, Redis tools, Python 3.12 dependencies, and execute the WSL pytest suite.
 - WSL launch check before restart: `wsl -d Ubuntu-24.04 -- uname -a` returned `Wsl/Service/WSL_E_DISTRO_NOT_FOUND`.
+- WSL follow-up after restart: `wsl --status` is available and firmware virtualization is enabled, but `wsl --install -d Ubuntu-24.04 --no-launch` still returns `HCS_E_HYPERV_NOT_INSTALLED`.
+- Windows feature enablement helper: `scripts/windows_enable_wsl2_features.ps1` was added to enable `Microsoft-Windows-Subsystem-Linux`, `VirtualMachinePlatform`, set `hypervisorlaunchtype auto`, and set WSL default version 2 from an elevated PowerShell. This helper must be allowed through UAC and followed by another Windows restart before retrying `scripts/wsl_bootstrap.ps1`.
 - Diff check: `git diff --check` passed.
 - Unfinished marker scan: no matches for the repository unfinished-work marker scan across `docs`, `src`, `tests`, `scripts`, `.github`, `README.md`, and `pyproject.toml`.
 - Production-like smoke command after WSL restart: `python scripts/prodlike_smoke_test.py --base-url http://localhost:8000 --client-id toolbox --secret local-dev-secret`.

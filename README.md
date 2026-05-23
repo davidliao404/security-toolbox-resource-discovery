@@ -116,6 +116,14 @@ python -m venv .venv
 powershell -ExecutionPolicy Bypass -File scripts/wsl_bootstrap.ps1
 ```
 
+如果 bootstrap 返回 `HCS_E_HYPERV_NOT_INSTALLED`，先以管理员权限启用 WSL2 所需 Windows 功能：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/windows_enable_wsl2_features.ps1 -NoRestart
+```
+
+脚本完成后重启 Windows，再重新运行 `scripts/wsl_bootstrap.ps1`。
+
 脚本会安装或复用 `Ubuntu-24.04`，并在 WSL 内安装 Docker Engine、Docker Compose plugin、PostgreSQL client、Redis tools、Python 3.12 和项目测试依赖。完成后会执行：
 
 ```bash
