@@ -200,3 +200,9 @@
 - Local run result: Windows installed the WSL platform components and Ubuntu package, then reported that the operation requires a Windows restart before the distribution can be launched. A follow-up `wsl -d Ubuntu-24.04 -- uname -a` returned `Wsl/Service/WSL_E_DISTRO_NOT_FOUND` before restart.
 - Continuation command after restart: `powershell -ExecutionPolicy Bypass -File scripts\wsl_bootstrap.ps1`
 - Production verification remains owned by this plan and must be completed in WSL after the host applies the WSL platform changes.
+
+## 21. Production-Like CI
+
+- Workflow: `.github/workflows/prodlike.yml`
+- Services: PostgreSQL 16 and Redis 7 service containers.
+- Verification: install project dependencies, run Alembic migrations, execute full pytest suite with PostgreSQL and Redis integration URLs, and validate `docker-compose.prodlike.yml` with `docker compose config`.
