@@ -3,15 +3,19 @@ from __future__ import annotations
 from datetime import datetime, timezone
 import json
 from pathlib import Path
+import time
 from typing import Any, Callable
+from uuid import uuid4
 
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 
 from .auth_http import ClientSecretResolver, FileClientSecretResolver, authenticate_http_request
 from .backend_factory import build_queue, build_repositories
 from .config import GatewaySettings, load_settings
 from .gateway_api import DiscoveryGatewayApi
+from .logging_config import configure_logging
+from .metrics import GatewayMetrics
 from .queue_backends import SQLiteTaskQueue
 from .request_auth import AuthError, InMemoryNonceStore, NonceStore
 from .scope_guard import TenantScopeProfile
@@ -65,13 +69,18 @@ def create_app(
     queue: Any | None = None,
     storage_backend: str = "sqlite",
     queue_backend: str = "sqlite",
+    metrics_enabled: bool = False,
+    log_format: str = "text",
+    log_level: str = "INFO",
 ) -> FastAPI:
     if task_repository is None or result_repository is None or queue is None:
         initialize_sqlite(sqlite_path)
         task_repository = task_repository or SQLiteTaskRepository(sqlite_path)
         result_repository = result_repository or SQLiteResultRepository(sqlite_path)
         queue = queue or SQLiteTaskQueue(sqlite_path)
+    configure_logging(log_format=log_format, level=log_level)
     app = FastAPI(title="Resource Discovery Gateway", version="0.1.0")
+    metrics = GatewayMetrics()
     gateway_api = DiscoveryGatewayApi(
         profile=profile or _default_profile(),
         source_client=source_client or FixtureSourceClient(Path("tests/fixtures/fofa_results.json")),
@@ -88,6 +97,17 @@ def create_app(
     app.state.result_repository = result_repository
     app.state.storage_backend = storage_backend
     app.state.queue_backend = queue_backend
+    app.state.metrics = metrics
+
+    @app.middleware("http")
+    async def request_context(request: Request, call_next):
+        request_id = request.headers.get("X-Request-Id") or uuid4().hex
+        started = time.perf_counter()
+        response = await call_next(request)
+        response.headers["X-Request-Id"] = request_id
+        metrics.requests.labels(request.method, request.url.path, str(response.status_code)).inc()
+        metrics.request_seconds.labels(request.method, request.url.path).observe(time.perf_counter() - started)
+        return response
 
     async def require_auth(request: Request) -> dict[str, str] | JSONResponse:
         body = await request.body()
@@ -102,6 +122,7 @@ def create_app(
                 now=clock(),
             )
         except AuthError as exc:
+            metrics.auth_failures.labels(exc.code).inc()
             return JSONResponse(
                 status_code=401,
                 content={
@@ -124,6 +145,11 @@ def create_app(
     @app.get("/readyz")
     def readyz() -> dict[str, str]:
         return {"status": "ok", "storage": storage_backend, "queue": queue_backend}
+
+    if metrics_enabled:
+        @app.get("/metrics")
+        def metrics_endpoint() -> Response:
+            return Response(content=metrics.render(), media_type="text/plain; version=0.0.4")
 
     @app.get("/api/v1/discovery/scope-profile")
     async def get_scope_profile(request: Request) -> Any:
@@ -182,6 +208,9 @@ def create_app_from_settings(
         queue=queue,
         storage_backend=resolved.storage_backend,
         queue_backend=resolved.queue_backend,
+        metrics_enabled=resolved.metrics_enabled,
+        log_format=resolved.log_format,
+        log_level=resolved.log_level,
     )
 
 

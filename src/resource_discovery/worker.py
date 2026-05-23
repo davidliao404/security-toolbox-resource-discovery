@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from .audit import AuditEvent, AuditLogger
@@ -8,6 +9,8 @@ from .gateway_api import seeds_from_scope
 from .repositories import ResultRepository, TaskRepository
 from .source_client import SourceClient
 from .task_queue import InMemoryTaskQueue
+
+logger = logging.getLogger(__name__)
 
 
 class TaskWorker:
@@ -37,6 +40,10 @@ class TaskWorker:
         self._mark_status(task_payload, "running")
         self.task_repository.update(task_payload)
         self._record("discovery_task_started", item.tenant_id, item.task_id, {})
+        logger.info(
+            "discovery task started",
+            extra={"extra_fields": {"tenant_id": item.tenant_id, "task_id": item.task_id}},
+        )
         try:
             result_payload = self._execute(task_payload)
         except Exception as exc:
@@ -109,6 +116,16 @@ class TaskWorker:
             {
                 "status": result_payload["task"]["status"],
                 "result_count": result_payload["task"].get("quota_usage", {}).get("result_count", 0),
+            },
+        )
+        logger.info(
+            "discovery task completed",
+            extra={
+                "extra_fields": {
+                    "tenant_id": item.tenant_id,
+                    "task_id": item.task_id,
+                    "status": _status_value(result_payload["task"]["status"]),
+                }
             },
         )
         return {
