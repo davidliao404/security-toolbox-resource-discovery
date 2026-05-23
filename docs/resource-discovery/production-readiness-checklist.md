@@ -191,3 +191,12 @@
 - Baseline repair: `f3f649d fix: preserve sqlite nonce replay window` aligns SQLite nonce cleanup with the request timestamp used by signed gateway requests.
 - Verification command: `C:\Users\op827\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe -m pytest`
 - Verification result: `175 passed in 2.02s`
+
+## 20. WSL Production Validation Bootstrap
+
+- Date: 2026-05-23
+- Command: `powershell -ExecutionPolicy Bypass -File scripts\wsl_bootstrap.ps1`
+- Script behavior: installs or selects `Ubuntu-24.04`, enters the repository from WSL, installs Docker Engine, Docker Compose plugin, PostgreSQL client tools, Redis tools, Python 3.12, and project dev dependencies, then runs Docker/Python/Pytest verification commands.
+- Local run result: Windows installed the WSL platform components and Ubuntu package, then reported that the operation requires a Windows restart before the distribution can be launched. A follow-up `wsl -d Ubuntu-24.04 -- uname -a` returned `Wsl/Service/WSL_E_DISTRO_NOT_FOUND` before restart.
+- Continuation command after restart: `powershell -ExecutionPolicy Bypass -File scripts\wsl_bootstrap.ps1`
+- Production verification remains owned by this plan and must be completed in WSL after the host applies the WSL platform changes.

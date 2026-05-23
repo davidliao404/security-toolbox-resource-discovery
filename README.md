@@ -29,7 +29,12 @@
 
 - `docs/resource-discovery/toolbox-api-contract.md`
 - `docs/resource-discovery/toolbox-handoff.md`
+- `docs/resource-discovery/toolbox-integration-rules.md`
 - `docs/resource-discovery/production-readiness-checklist.md`
+
+## 外部工具箱接口约束
+
+资源发现网关团队拥有第一版接口定义权。外部工具箱团队必须适配 `docs/resource-discovery/toolbox-api-contract.md` 中的路径、签名、状态、分页和错误模型；联调只验证实现是否符合当前网关协议，不把字段、路径或状态语义作为默认可协商项。接口变更必须由网关负责人批准并形成版本化迁移说明。
 
 ## 专业被动 EASM 工作流
 
@@ -101,6 +106,23 @@ python -m venv .venv
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest -q
+```
+
+## WSL 生产化验证环境
+
+生产上线版验证在 Windows Subsystem for Linux 的 Ubuntu 24.04 中完成。即使 Windows 主机没有预装 Docker、PostgreSQL 或 Redis，也应通过 bootstrap 脚本在 WSL 内安装并校验。
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/wsl_bootstrap.ps1
+```
+
+脚本会安装或复用 `Ubuntu-24.04`，并在 WSL 内安装 Docker Engine、Docker Compose plugin、PostgreSQL client、Redis tools、Python 3.12 和项目测试依赖。完成后会执行：
+
+```bash
+docker --version
+docker compose version
+python3.12 --version
+python -m pytest
 ```
 
 ## 工具箱联调交付版
