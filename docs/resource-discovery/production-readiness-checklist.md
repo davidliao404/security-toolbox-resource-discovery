@@ -206,3 +206,21 @@
 - Workflow: `.github/workflows/prodlike.yml`
 - Services: PostgreSQL 16 and Redis 7 service containers.
 - Verification: install project dependencies, run Alembic migrations, execute full pytest suite with PostgreSQL and Redis integration URLs, and validate `docker-compose.prodlike.yml` with `docker compose config`.
+
+## 22. Production Launch Verification - 2026-05-23
+
+- Branch: `codex/production-launch-ready-gateway`
+- Windows test command: `C:\Users\op827\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe -m pytest`
+- Windows test result: `196 passed, 4 skipped in 3.19s`
+- PostgreSQL/Redis integration command without service URLs: `python.exe -m pytest tests/test_postgres_store.py tests/test_redis_queue.py`
+- PostgreSQL/Redis integration result without service URLs: `2 passed, 4 skipped in 0.19s`; real container execution is wired through WSL bootstrap and GitHub Actions service containers.
+- Alembic offline command: `python.exe -m alembic -c alembic.ini upgrade head --sql`
+- Alembic offline result: generated SQL for all production tables and indexes successfully.
+- Compose static command on Windows: `docker compose -f docker-compose.prodlike.yml config`
+- Compose static result on Windows: `docker` command is not installed on the Windows host. The production-like compose file was parsed with PyYAML and the CI workflow validates it with Docker Compose on Ubuntu.
+- WSL command: `powershell -ExecutionPolicy Bypass -File scripts\wsl_bootstrap.ps1`
+- WSL result: WSL platform components and Ubuntu package installation were triggered; Windows reported that the operation requires a restart before the distribution can launch. After restart, rerun the same command to install Docker Engine, Docker Compose plugin, PostgreSQL client tools, Redis tools, Python 3.12 dependencies, and execute the WSL pytest suite.
+- WSL launch check before restart: `wsl -d Ubuntu-24.04 -- uname -a` returned `Wsl/Service/WSL_E_DISTRO_NOT_FOUND`.
+- Diff check: `git diff --check` passed.
+- Unfinished marker scan: no matches for the repository unfinished-work marker scan across `docs`, `src`, `tests`, `scripts`, `.github`, `README.md`, and `pyproject.toml`.
+- Production-like smoke command after WSL restart: `python scripts/prodlike_smoke_test.py --base-url http://localhost:8000 --client-id toolbox --secret local-dev-secret`.

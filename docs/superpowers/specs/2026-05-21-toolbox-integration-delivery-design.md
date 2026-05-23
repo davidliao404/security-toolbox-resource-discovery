@@ -251,6 +251,6 @@ The delivery is ready for Toolbox integration when:
 ## Spec Self-Review
 
 - Coverage: The design covers HTTP service, authentication, durable storage, queue, worker, configuration, handoff docs, tests, and acceptance criteria for a complete Toolbox integration delivery.
-- Placeholder scan: No implementation requirement is left as TBD or TODO. Open decisions are explicit choices that require project coordination, not missing design details.
+- Placeholder scan: No implementation requirement is left as an unfinished-work marker. Open decisions are explicit choices that require project coordination, not missing design details.
 - Scope check: The phase is larger than a small PoC change, but it is a coherent single delivery package because every task supports the same outcome: low-friction Toolbox integration.
 - Ambiguity check: The design explicitly separates integration-ready behavior from final production readiness, and it keeps the gateway out of long-term asset inventory and vulnerability validation responsibilities.

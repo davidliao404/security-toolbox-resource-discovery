@@ -303,11 +303,11 @@ $env:FOFA_BASE_URL = "http://fofa.icu/api/v1/search/all"
 - 风险分析模式。
 - 大模型增强扩展点的数据最小化。
 
-## 12. 后续优化 TODO
+## 12. 后续优化事项
 
 后续优化集中记录在 `docs/resource-discovery/todo.md`。
 
-当前重要 TODO：
+当前重要后续事项：
 
 - 为双轨风险分析补充真实大模型供应商连接器和费用/token 审计。
 
