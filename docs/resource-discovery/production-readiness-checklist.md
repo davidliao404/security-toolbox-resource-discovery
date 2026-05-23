@@ -197,9 +197,15 @@
 - Date: 2026-05-23
 - Command: `powershell -ExecutionPolicy Bypass -File scripts\wsl_bootstrap.ps1`
 - Script behavior: installs or selects `Ubuntu-24.04`, enters the repository from WSL, installs Docker Engine, Docker Compose plugin, PostgreSQL client tools, Redis tools, Python 3.12, and project dev dependencies, then runs Docker/Python/Pytest verification commands.
-- Local run result: Windows installed the WSL platform components and Ubuntu package, then reported that the operation requires a Windows restart before the distribution can be launched. A follow-up `wsl -d Ubuntu-24.04 -- uname -a` returned `Wsl/Service/WSL_E_DISTRO_NOT_FOUND` before restart.
-- Continuation command after restart: `powershell -ExecutionPolicy Bypass -File scripts\wsl_bootstrap.ps1`
-- Production verification remains owned by this plan and must be completed in WSL after the host applies the WSL platform changes.
+- Local run result: PASS after enabling WSL2 Windows features and rebooting the host.
+- WSL distribution: `Ubuntu-24.04`, Ubuntu 24.04.4 LTS, WSL2.
+- Docker Engine: `Docker version 29.5.2`.
+- Docker Compose: `Docker Compose version v5.1.4`.
+- PostgreSQL client: `psql (PostgreSQL) 16.14`.
+- Redis tools: `redis-cli 7.0.15`.
+- Python: `Python 3.12.3`.
+- WSL bootstrap pytest result: `196 passed, 4 skipped in 8.25s`.
+- Local network note: direct Docker Hub registry pulls were reset by the local network path. WSL Docker daemon was configured with reachable registry mirrors, and images were retained with standard local tags: `postgres:16`, `redis:7`, and `python:3.12-slim`.
 
 ## 21. Production-Like CI
 
@@ -211,18 +217,23 @@
 
 - Branch: `codex/production-launch-ready-gateway`
 - Windows test command: `C:\Users\op827\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe -m pytest`
-- Windows test result: `196 passed, 4 skipped in 3.19s`
-- PostgreSQL/Redis integration command without service URLs: `python.exe -m pytest tests/test_postgres_store.py tests/test_redis_queue.py`
-- PostgreSQL/Redis integration result without service URLs: `2 passed, 4 skipped in 0.19s`; real container execution is wired through WSL bootstrap and GitHub Actions service containers.
+- Windows test result: `196 passed, 4 skipped in 3.40s`
+- WSL test command: `python3.12 -m venv .venv-wsl && . .venv-wsl/bin/activate && python -m pip install -e '.[dev]' && python -m pytest -q`
+- WSL test result: `196 passed, 4 skipped in 9.28s`
+- WSL bootstrap command: `powershell -ExecutionPolicy Bypass -File scripts\wsl_bootstrap.ps1`
+- WSL bootstrap result: Docker 29.5.2, Compose v5.1.4, Python 3.12.3, pytest 9.0.3, `196 passed, 4 skipped in 8.25s`
+- PostgreSQL/Redis integration command: `RESOURCE_DISCOVERY_DATABASE_URL=postgresql+psycopg://rd:rd@localhost:5432/rd RESOURCE_DISCOVERY_TEST_DATABASE_URL=postgresql+psycopg://rd:rd@localhost:5432/rd RESOURCE_DISCOVERY_TEST_REDIS_URL=redis://localhost:6379/0 python -m pytest tests/test_postgres_store.py tests/test_redis_queue.py tests/test_worker_retry.py -q`
+- PostgreSQL/Redis integration result: `9 passed in 3.42s`
 - Alembic offline command: `python.exe -m alembic -c alembic.ini upgrade head --sql`
 - Alembic offline result: generated SQL for all production tables and indexes successfully.
-- Compose static command on Windows: `docker compose -f docker-compose.prodlike.yml config`
-- Compose static result on Windows: `docker` command is not installed on the Windows host. The production-like compose file was parsed with PyYAML and the CI workflow validates it with Docker Compose on Ubuntu.
-- WSL command: `powershell -ExecutionPolicy Bypass -File scripts\wsl_bootstrap.ps1`
-- WSL result: WSL platform components and Ubuntu package installation were triggered; Windows reported that the operation requires a restart before the distribution can launch. After restart, rerun the same command to install Docker Engine, Docker Compose plugin, PostgreSQL client tools, Redis tools, Python 3.12 dependencies, and execute the WSL pytest suite.
-- WSL launch check before restart: `wsl -d Ubuntu-24.04 -- uname -a` returned `Wsl/Service/WSL_E_DISTRO_NOT_FOUND`.
-- WSL follow-up after restart: `wsl --status` is available and firmware virtualization is enabled, but `wsl --install -d Ubuntu-24.04 --no-launch` still returns `HCS_E_HYPERV_NOT_INSTALLED`.
-- Windows feature enablement helper: `scripts/windows_enable_wsl2_features.ps1` was added to enable `Microsoft-Windows-Subsystem-Linux`, `VirtualMachinePlatform`, set `hypervisorlaunchtype auto`, and set WSL default version 2 from an elevated PowerShell. This helper must be allowed through UAC and followed by another Windows restart before retrying `scripts/wsl_bootstrap.ps1`.
-- Diff check: `git diff --check` passed.
-- Unfinished marker scan: no matches for the repository unfinished-work marker scan across `docs`, `src`, `tests`, `scripts`, `.github`, `README.md`, and `pyproject.toml`.
-- Production-like smoke command after WSL restart: `python scripts/prodlike_smoke_test.py --base-url http://localhost:8000 --client-id toolbox --secret local-dev-secret`.
+- Compose static command: `docker compose -p rd-prodlike -f docker-compose.prodlike.yml config`
+- Compose static result: PASS inside WSL.
+- Production-like compose command: `docker compose -p rd-prodlike -f docker-compose.prodlike.yml up --build -d`
+- Production-like compose result: PostgreSQL healthy, Redis healthy, migration completed, API healthy, worker started.
+- Production-like smoke command: `python scripts/prodlike_smoke_test.py --base-url http://127.0.0.1:8000 --client-id toolbox --secret local-dev-secret`
+- Production-like smoke result: `{"status": "success", "asset_count": 3}`.
+- Compose cleanup command: `docker compose -p rd-prodlike -f docker-compose.prodlike.yml down -v`
+- Compose cleanup result: containers, network, and PostgreSQL validation volume removed.
+- Path compatibility note: Docker Compose v5/BuildKit produced non-ASCII project/session errors when building directly under the Chinese Windows path exposed through WSL. Validation was completed from `/tmp/rd-prodlike-src` with `-p rd-prodlike`, using an ASCII project directory and explicit compose project name.
+- Secret scan command: `rg -n "FOFA_API_KEY|local-dev-secret|secret-|token|api_key|password" . -g "!artifacts/**" -g "!.venv*/**" -g "!*.pyc" -g "!*.sqlite3"`
+- Secret scan result: PASS. Matches are placeholders, example client secrets, docs, test fixtures, field names, and code reading environment variables; no real provider key or production credential was found.

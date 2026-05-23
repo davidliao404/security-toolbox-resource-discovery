@@ -133,6 +133,27 @@ python3.12 --version
 python -m pytest
 ```
 
+WSL 内生产式 compose 验证使用 PostgreSQL、Redis、迁移容器、API 和 worker：
+
+```bash
+docker compose -p rd-prodlike -f docker-compose.prodlike.yml config
+docker compose -p rd-prodlike -f docker-compose.prodlike.yml up --build -d
+python scripts/prodlike_smoke_test.py --base-url http://127.0.0.1:8000 --client-id toolbox --secret local-dev-secret
+docker compose -p rd-prodlike -f docker-compose.prodlike.yml down -v
+```
+
+如果仓库路径包含中文字符且 Docker BuildKit 报告非 ASCII session key，可先在 WSL 内复制到 ASCII 临时目录后运行同一组 compose 命令：
+
+```bash
+rm -rf /tmp/rd-prodlike-src
+mkdir -p /tmp/rd-prodlike-src
+tar --exclude=.git --exclude=.venv --exclude=.venv-linux --exclude=.venv-wsl --exclude=artifacts -cf - . | tar -C /tmp/rd-prodlike-src -xf -
+cd /tmp/rd-prodlike-src
+docker compose -p rd-prodlike -f docker-compose.prodlike.yml up --build -d
+```
+
+如果 Docker Hub 直连被重置，可在 WSL Docker daemon 配置可达 registry mirror 后重启 Docker；本地验证仍保留标准镜像标签 `postgres:16`、`redis:7`、`python:3.12-slim`。
+
 ## 工具箱联调交付版
 
 安装联调依赖：

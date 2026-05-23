@@ -9,6 +9,8 @@ htmlcov/
 
 # Virtual environments
 .venv/
+.venv-linux/
+.venv-wsl/
 venv/
 
 # Local environment

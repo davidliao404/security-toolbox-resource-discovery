@@ -96,7 +96,7 @@ def test_postgres_repositories_round_trip_task_results_scope_nonce_and_audit(eng
     result_repo.save_results("tenant_a", "task_1", {"assets": [{"asset_id": "asset_1"}]})
     assert result_repo.load_results("tenant_a", "task_1", None, 10)["assets"] == [{"asset_id": "asset_1"}]
 
-    timestamp = datetime(2026, 5, 23, tzinfo=timezone.utc)
+    timestamp = datetime.now(timezone.utc)
     assert nonce_repo.remember_once("nonce-1", timestamp)
     assert not nonce_repo.remember_once("nonce-1", timestamp)
 

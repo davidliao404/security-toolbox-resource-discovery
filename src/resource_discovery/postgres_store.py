@@ -186,8 +186,9 @@ class PostgresNonceRepository:
                 pg_insert(request_nonces)
                 .values(nonce=nonce, timestamp=request_time, expires_at=expires_at)
                 .on_conflict_do_nothing(index_elements=[request_nonces.c.nonce])
+                .returning(request_nonces.c.nonce)
             )
-        return result.rowcount == 1
+        return result.scalar_one_or_none() is not None
 
 
 class PostgresAuditRepository:
@@ -221,4 +222,3 @@ class PostgresAuditRepository:
         with self.engine.begin() as conn:
             rows = conn.execute(stmt).mappings().all()
         return [dict(row) for row in rows]
-

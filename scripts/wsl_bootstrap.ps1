@@ -4,6 +4,9 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+if (Get-Variable PSNativeCommandUseErrorActionPreference -ErrorAction SilentlyContinue) {
+    $PSNativeCommandUseErrorActionPreference = $false
+}
 
 function Convert-ToWslPath {
     param([string]$WindowsPath)
@@ -20,18 +23,13 @@ if (-not (Get-Command wsl.exe -ErrorAction SilentlyContinue)) {
     throw "wsl.exe is not available. Enable Windows Subsystem for Linux before running this script."
 }
 
-$installedRaw = & wsl.exe --list 2>$null
-$installed = @($installedRaw | ForEach-Object { ($_ -replace "`0", "").Trim().TrimStart("*").Trim() } | Where-Object { $_ -and $_ -notmatch "Windows|Linux|NAME|FRIENDLY" })
+$distroAvailable = $false
+& cmd.exe /c "wsl.exe -d $Distro -- true 2>nul"
+if ($LASTEXITCODE -eq 0) {
+    $distroAvailable = $true
+}
 
-$distroAvailable = $installed -contains $Distro
 if (-not $distroAvailable) {
-    $onlineRaw = & wsl.exe --list --online 2>$null
-    $online = @($onlineRaw | ForEach-Object { ($_ -replace "`0", "").Trim() } | Where-Object { $_ })
-    if (($Distro -eq "Ubuntu-24.04") -and ($online -match "^Ubuntu(\s|$)")) {
-        Write-Host "Ubuntu-24.04 is not listed by this WSL build; falling back to Ubuntu from the online catalog."
-        $Distro = "Ubuntu"
-    }
-
     Write-Host "Installing WSL distribution $Distro"
     & wsl.exe --install --distribution $Distro --no-launch
     if ($LASTEXITCODE -ne 0) {

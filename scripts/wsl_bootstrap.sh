@@ -6,27 +6,51 @@ if [[ ! -f pyproject.toml ]]; then
   exit 1
 fi
 
+echo 'Acquire::ForceIPv4 "true";' | sudo tee /etc/apt/apt.conf.d/99force-ipv4 >/dev/null
+
 sudo apt-get update
 sudo apt-get install -y ca-certificates curl gnupg lsb-release software-properties-common
 
+docker_repo_ready=0
 if [[ ! -f /etc/apt/keyrings/docker.asc ]]; then
   sudo install -m 0755 -d /etc/apt/keyrings
-  curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo tee /etc/apt/keyrings/docker.asc >/dev/null
-  sudo chmod a+r /etc/apt/keyrings/docker.asc
+  if curl --retry 5 --retry-delay 5 --connect-timeout 20 -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo tee /etc/apt/keyrings/docker.asc >/dev/null; then
+    sudo chmod a+r /etc/apt/keyrings/docker.asc
+    docker_repo_ready=1
+  else
+    sudo rm -f /etc/apt/keyrings/docker.asc
+    echo "Docker official repository key download failed; falling back to Ubuntu docker packages." >&2
+  fi
+else
+  docker_repo_ready=1
 fi
 
 . /etc/os-release
 docker_codename="${VERSION_CODENAME:-noble}"
 docker_list="/etc/apt/sources.list.d/docker.list"
-echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu ${docker_codename} stable" | sudo tee "${docker_list}" >/dev/null
+if [[ "${docker_repo_ready}" == "1" ]]; then
+  echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu ${docker_codename} stable" | sudo tee "${docker_list}" >/dev/null
+else
+  sudo rm -f "${docker_list}"
+fi
 
 sudo apt-get update
+if [[ "${docker_repo_ready}" == "1" ]]; then
+  sudo apt-get remove -y docker-compose-v2 docker-buildx docker.io containerd runc || true
+  sudo apt-get install -y \
+    docker-ce \
+    docker-ce-cli \
+    containerd.io \
+    docker-buildx-plugin \
+    docker-compose-plugin
+else
+  sudo apt-get install -y \
+    docker.io \
+    docker-buildx \
+    docker-compose-v2
+fi
+
 sudo apt-get install -y \
-  docker-ce \
-  docker-ce-cli \
-  containerd.io \
-  docker-buildx-plugin \
-  docker-compose-plugin \
   postgresql-client \
   redis-tools \
   python3.12 \
