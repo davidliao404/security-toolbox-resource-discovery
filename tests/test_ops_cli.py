@@ -52,8 +52,22 @@ def test_seed_scope_profile_writes_sqlite_profile(tmp_path):
 
 def test_cleanup_retention_removes_expired_sqlite_rows(tmp_path, capsys):
     sqlite_path = tmp_path / "gateway.sqlite3"
+    from resource_discovery.sqlite_store import _connect, initialize_sqlite
+
+    initialize_sqlite(sqlite_path)
+    with _connect(sqlite_path) as conn:
+        conn.execute(
+            "insert into tasks (tenant_id, task_id, status, payload, updated_at) values (?, ?, ?, ?, ?)",
+            ("tenant_a", "old_task", "success", '{"task": {"tenant_id": "tenant_a", "task_id": "old_task"}}', "2000-01-01T00:00:00+00:00"),
+        )
+        conn.execute(
+            "insert into results (tenant_id, task_id, result_type, position, payload) values (?, ?, ?, ?, ?)",
+            ("tenant_a", "old_task", "assets", 0, '{"asset_id": "asset_old"}'),
+        )
     assert main(["cleanup-retention", "--sqlite-path", str(sqlite_path), "--older-than-days", "0"]) == 0
 
     payload = json.loads(capsys.readouterr().out)
     assert payload["status"] == "ok"
     assert "deleted" in payload
+    assert payload["deleted"]["tasks"] == 1
+    assert payload["deleted"]["results"] == 1

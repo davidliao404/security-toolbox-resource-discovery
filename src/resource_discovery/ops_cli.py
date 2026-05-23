@@ -137,6 +137,17 @@ def _cleanup_retention(args: argparse.Namespace) -> int:
     cutoff = (datetime.now(timezone.utc) - timedelta(days=args.older_than_days)).isoformat()
     deleted: dict[str, int] = {}
     with _connect(settings.sqlite_path) as conn:
+        expired_tasks = conn.execute("select tenant_id, task_id from tasks where updated_at < ?", (cutoff,)).fetchall()
+        deleted_results = 0
+        for row in expired_tasks:
+            cursor = conn.execute(
+                "delete from results where tenant_id=? and task_id=?",
+                (row["tenant_id"], row["task_id"]),
+            )
+            deleted_results += cursor.rowcount
+        deleted["results"] = deleted_results
+        cursor = conn.execute("delete from tasks where updated_at < ?", (cutoff,))
+        deleted["tasks"] = cursor.rowcount
         for table in ("nonces", "audit_events"):
             column = "expires_at" if table == "nonces" else "created_at"
             cursor = conn.execute(f"delete from {table} where {column} < ?", (cutoff,))
