@@ -133,6 +133,15 @@ python -m pytest
 .\.venv\Scripts\python.exe -m pip install -e ".[dev]"
 ```
 
+生产运维 CLI：
+
+```powershell
+.\.venv\Scripts\python.exe -m resource_discovery.ops_cli verify-config --client-secrets-file config\client-secrets.example.json
+.\.venv\Scripts\python.exe -m resource_discovery.ops_cli migrate --database-url postgresql+psycopg://postgres:postgres@localhost:5432/resource_discovery
+.\.venv\Scripts\python.exe -m resource_discovery.ops_cli seed-scope-profile --sqlite-path artifacts\integration\resource-discovery.sqlite3 --profile-json examples\scope_profile.json
+.\.venv\Scripts\python.exe -m resource_discovery.ops_cli cleanup-retention --sqlite-path artifacts\integration\resource-discovery.sqlite3 --older-than-days 90
+```
+
 启动 HTTP 服务：
 
 ```powershell
