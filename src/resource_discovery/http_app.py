@@ -9,6 +9,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from .auth_http import ClientSecretResolver, FileClientSecretResolver, authenticate_http_request
+from .backend_factory import build_queue, build_repositories
 from .config import GatewaySettings, load_settings
 from .gateway_api import DiscoveryGatewayApi
 from .queue_backends import SQLiteTaskQueue
@@ -59,12 +60,18 @@ def create_app(
     now: Callable[[], datetime] | None = None,
     profile: TenantScopeProfile | None = None,
     source_client: SourceClient | None = None,
+    task_repository: Any | None = None,
+    result_repository: Any | None = None,
+    queue: Any | None = None,
+    storage_backend: str = "sqlite",
+    queue_backend: str = "sqlite",
 ) -> FastAPI:
-    initialize_sqlite(sqlite_path)
+    if task_repository is None or result_repository is None or queue is None:
+        initialize_sqlite(sqlite_path)
+        task_repository = task_repository or SQLiteTaskRepository(sqlite_path)
+        result_repository = result_repository or SQLiteResultRepository(sqlite_path)
+        queue = queue or SQLiteTaskQueue(sqlite_path)
     app = FastAPI(title="Resource Discovery Gateway", version="0.1.0")
-    task_repository = SQLiteTaskRepository(sqlite_path)
-    result_repository = SQLiteResultRepository(sqlite_path)
-    queue = SQLiteTaskQueue(sqlite_path)
     gateway_api = DiscoveryGatewayApi(
         profile=profile or _default_profile(),
         source_client=source_client or FixtureSourceClient(Path("tests/fixtures/fofa_results.json")),
@@ -79,6 +86,8 @@ def create_app(
     app.state.queue = queue
     app.state.task_repository = task_repository
     app.state.result_repository = result_repository
+    app.state.storage_backend = storage_backend
+    app.state.queue_backend = queue_backend
 
     async def require_auth(request: Request) -> dict[str, str] | JSONResponse:
         body = await request.body()
@@ -114,7 +123,7 @@ def create_app(
 
     @app.get("/readyz")
     def readyz() -> dict[str, str]:
-        return {"status": "ok", "storage": "sqlite", "queue": "sqlite"}
+        return {"status": "ok", "storage": storage_backend, "queue": queue_backend}
 
     @app.get("/api/v1/discovery/scope-profile")
     async def get_scope_profile(request: Request) -> Any:
@@ -159,13 +168,20 @@ def create_app_from_settings(
     now: Callable[[], datetime] | None = None,
 ) -> FastAPI:
     resolved = settings or load_settings()
+    repositories = build_repositories(resolved)
+    queue = build_queue(resolved)
     return create_app(
         sqlite_path=resolved.sqlite_path,
         client_secret_resolver=FileClientSecretResolver(resolved.client_secrets_file),
-        nonce_store=SQLiteNonceRepository(resolved.sqlite_path, window_seconds=resolved.nonce_window_seconds),
+        nonce_store=repositories.nonce_store,
         now=now,
         profile=_load_profile(resolved.scope_profile_seed),
         source_client=FixtureSourceClient(Path(resolved.fixture_path)),
+        task_repository=repositories.task_repository,
+        result_repository=repositories.result_repository,
+        queue=queue,
+        storage_backend=resolved.storage_backend,
+        queue_backend=resolved.queue_backend,
     )
 
 
