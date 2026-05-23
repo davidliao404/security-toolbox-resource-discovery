@@ -181,3 +181,13 @@
 当前仓库已经具备“PoC 可验证”的主链路：范围约束、异步任务、worker 执行、FOFA/uncover fixture、live 验证脚本、结果分页、freshness、审计和留存基线。
 
 但它还不是生产部署件。下一步应优先建设 HTTP API 层、真实持久化、可靠队列、供应商错误映射和鉴权签名。
+
+## 19. Production Launch Upgrade Baseline
+
+- Date: 2026-05-23
+- Branch: `codex/production-launch-ready-gateway`
+- Baseline commit: `f3f649d`
+- Windows environment note: plain `pytest` and `py -m pytest` were not available from PATH. The Codex bundled Python environment was used after installing project dev dependencies with `python.exe -m pip install -e ".[dev]"`.
+- Baseline repair: `f3f649d fix: preserve sqlite nonce replay window` aligns SQLite nonce cleanup with the request timestamp used by signed gateway requests.
+- Verification command: `C:\Users\op827\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe -m pytest`
+- Verification result: `175 passed in 2.02s`
