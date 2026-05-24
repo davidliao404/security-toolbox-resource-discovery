@@ -87,7 +87,7 @@ class DiscoveryGatewayApi:
                 "rejected_scope": [],
                 "errors": [error.to_dict()],
             }
-        if discovery_strategy not in SUPPORTED_STRATEGIES:
+        if not isinstance(discovery_strategy, str) or discovery_strategy not in SUPPORTED_STRATEGIES:
             error = invalid_discovery_strategy_error(discovery_strategy)
             self._record(
                 "discovery_scope_rejected",

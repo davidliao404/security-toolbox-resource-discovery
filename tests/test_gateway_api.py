@@ -134,6 +134,22 @@ def test_create_discovery_task_rejects_unknown_discovery_strategy(tmp_path):
     assert response["errors"][0]["code"] == "invalid_discovery_strategy"
 
 
+def test_create_discovery_task_rejects_non_string_discovery_strategy(tmp_path):
+    response = _api(tmp_path).create_task(
+        {
+            "profile_id": "scope_profile_001",
+            "requested_scope": {"root_domains": ["example.org"]},
+            "engines": ["fofa"],
+            "result_limit": 50,
+            "purpose": "toolbox_asset_discovery",
+            "discovery_strategy": ["active"],
+        }
+    )
+
+    assert response["status"] == "rejected"
+    assert response["errors"][0]["code"] == "invalid_discovery_strategy"
+
+
 def test_create_discovery_task_rejects_easm_strategy_over_query_budget(tmp_path):
     response = DiscoveryGatewayApi(
         profile=_profile_with_limits({"max_results_per_task": 100, "max_queries_per_task": 2}),
