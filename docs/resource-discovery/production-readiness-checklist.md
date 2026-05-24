@@ -237,3 +237,50 @@
 - 路径兼容性说明：在 WSL 暴露的中文 Windows 路径下直接构建时，Docker Compose v5/BuildKit 会出现非 ASCII 项目名或会话错误。最终验证从 `/tmp/rd-prodlike-src` 执行，并显式指定 `-p rd-prodlike`，即使用 ASCII 项目目录和固定 compose 项目名完成验证。
 - 敏感信息扫描命令：`rg -n "FOFA_API_KEY|local-dev-secret|secret-|token|api_key|password" . -g "!artifacts/**" -g "!.venv*/**" -g "!*.pyc" -g "!*.sqlite3"`
 - 敏感信息扫描结果：通过。命中项均为占位符、示例客户端密钥、文档、测试数据、字段名和读取环境变量的代码；未发现真实供应商密钥或生产凭据。
+
+## 23. 质量门禁与联调基线 - 2026-05-24
+
+- 分支：`master`
+- 基线提交：`25522a2 fix: harden gateway quality gates`
+- 交付用途：作为工具箱团队开始 FastAPI 网关联调的固定基线。
+
+本轮质量修复：
+
+- HTTP API 已绑定签名认证返回的 `tenant_id`，防止其他租户的有效凭据读取当前 scope profile。
+- GET 请求签名已覆盖 `path + query string`，防止 `result_type`、`limit`、`cursor` 等查询参数被签名后篡改。
+- scope profile 校验失败已转换为结构化拒绝响应，不再向外暴露未处理异常。
+- SQLite 队列重试已遵守延迟时间，worker 在重试期间保持 `retrying` 状态，不会提前落成 `failed`。
+- CI 覆盖率门禁已提升到 `fail_under = 98`。
+
+Windows 本地验证：
+
+- 测试命令：`.\.venv\Scripts\python.exe -m pytest -q`
+- 测试结果：`271 passed, 4 skipped in 4.21s`
+- 覆盖率命令：`.\.venv\Scripts\python.exe -m coverage run -m pytest -q`
+- 覆盖率测试结果：`271 passed, 4 skipped in 5.86s`
+- 覆盖率报告命令：`.\.venv\Scripts\python.exe -m coverage report`
+- 覆盖率报告结果：`TOTAL 2482 stmts, 45 miss, 98.19%`
+
+WSL 真实 PostgreSQL/Redis 验证：
+
+- 路径说明：为避开中文 Windows 路径和 Docker Compose 项目名兼容问题，验证工作树复制到 `/tmp/rd-verify-src` 执行。
+- 服务启动命令：`docker compose -p rd-verify -f docker-compose.prodlike.yml up -d postgres redis`
+- Alembic 迁移命令：`RESOURCE_DISCOVERY_DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5432/resource_discovery python -m alembic -c alembic.ini upgrade head`
+- 集成子集命令：`RESOURCE_DISCOVERY_TEST_DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5432/resource_discovery RESOURCE_DISCOVERY_TEST_REDIS_URL=redis://localhost:6379/0 python -m pytest tests/test_postgres_store.py tests/test_redis_queue.py tests/test_worker_retry.py -q -rs`
+- 集成子集结果：`27 passed in 1.23s`
+- 完整套件命令：`RESOURCE_DISCOVERY_DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5432/resource_discovery RESOURCE_DISCOVERY_TEST_DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5432/resource_discovery RESOURCE_DISCOVERY_TEST_REDIS_URL=redis://localhost:6379/0 python -m pytest -q`
+- 完整套件结果：`275 passed in 4.76s`
+- 清理命令：`docker compose -p rd-verify -f docker-compose.prodlike.yml down -v`
+
+远端 CI 状态：
+
+- 提交 `25522a2` 已触发 GitHub Actions：`CI #43` 和 `production-like-gateway #7`。
+- 当前本地环境未安装 `gh`，GitHub Actions 页面加载也只返回部分状态，因此最终绿灯需要在 GitHub Actions 页面人工确认。
+
+后续生产交付重点：
+
+- 客户端密钥管理和轮换。
+- scope profile 管理、审批和审计。
+- 租户配额、供应商限速、任务取消和死信队列操作。
+- 集中审计、指标、留存清理和告警。
+- 受控真实 FOFA 回归验证。

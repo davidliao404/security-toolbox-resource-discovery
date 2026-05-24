@@ -45,7 +45,7 @@
 - `X-Nonce`
 - `X-Signature`
 
-PoC handler 暂未实现完整 HTTP 鉴权，但工具箱侧应按生产契约预留这些字段。
+FastAPI 联调交付版已实现 HMAC-SHA256 签名鉴权。签名 canonical request 包含 `method`、`path + query string`、`timestamp`、`nonce` 和请求体 SHA256；GET 查询参数必须按实际发送的 path+query 参与签名。
 
 ## 3. 查询授权范围
 
@@ -439,3 +439,31 @@ compose 会启动两个服务：
 - fixture 使用 `/app/tests/fixtures/fofa_results.json`，不会调用真实 FOFA。
 
 联调时如果修改 `config/client-secrets.json`，工具箱请求签名使用的 secret 必须同步更新。
+
+## 14. 当前可联调基线 - 2026-05-24
+
+- 分支：`master`
+- 提交：`25522a2 fix: harden gateway quality gates`
+- 契约文档：`docs/resource-discovery/toolbox-api-contract.md`
+- 联调基线说明：`docs/resource-discovery/toolbox-integration-baseline-2026-05-24.md`
+
+本基线可作为工具箱团队开始接口适配的固定参照。工具箱侧应按以下顺序联调：
+
+1. `GET /api/v1/discovery/scope-profile`
+2. `POST /api/v1/discovery/tasks`
+3. `GET /api/v1/discovery/tasks/{task_id}`
+4. `GET /api/v1/discovery/tasks/{task_id}/results?result_type=assets|services|source_evidence&limit=...&cursor=...`
+
+签名和隔离要求：
+
+- 每个请求都必须发送 `X-Tenant-Id`、`X-Client-Id`、`X-Timestamp`、`X-Nonce`、`X-Signature`。
+- GET 请求的查询参数必须参与签名；例如结果分页请求应签 `/api/v1/discovery/tasks/{task_id}/results?result_type=assets&limit=100`，而不是只签路径。
+- nonce 在有效窗口内只能使用一次。
+- 已认证租户必须与当前 scope profile 租户一致，不能用其他租户的有效凭据读取本租户配置。
+- 工具箱只能提交结构化范围并缩小后台授权范围，不得透传 FOFA 原生查询语句。
+
+本地质量基线：
+
+- Windows：`271 passed, 4 skipped`，覆盖率 `98.19%`。
+- WSL + 真实 PostgreSQL/Redis：`275 passed`。
+- CI 已为提交 `25522a2` 触发 `CI #43` 和 `production-like-gateway #7`；最终状态以 GitHub Actions 页面为准。
