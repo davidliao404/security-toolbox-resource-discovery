@@ -6,32 +6,32 @@
 
 状态约定：
 
-- `Done`：已在代码、文档或流程中实现。
-- `PoC`：已有雏形，但不应直接按生产标准使用。
-- `Pending`：上线前必须补齐。
-- `Decision`：需要业务或合规决策。
+- `已完成`：已在代码、文档或流程中实现。
+- `原型可用`：已有雏形，但不应直接按生产标准使用。
+- `待补齐`：上线前必须补齐。
+- `待决策`：需要业务或合规决策。
 
 ## 2. 总览
 
 | 领域 | 当前状态 | 上线前要求 |
 | --- | --- | --- |
-| API 契约 | `Done` | 与工具箱团队冻结字段和错误码 |
-| 租户范围控制 | `PoC` | 接入真实后台配置和审批记录 |
-| 异步任务 | `PoC` | 替换内存队列，支持重试和并发控制 |
-| 结果持久化 | `PoC` | 替换文件存储，使用数据库或对象存储 |
-| 审计 | `PoC` | 接入集中审计、权限检索和留存策略 |
-| 留存策略 | `PoC` | 接入定时清理任务和客户级策略 |
-| FOFA/uncover | `PoC` | 明确生产供应商配置、限速、重试和降级 |
-| 鉴权签名 | `Integration` | FastAPI 联调版已验签；生产需接入客户端密钥管理 |
-| 运维观测 | `Pending` | 增加指标、日志、告警和追踪 |
-| 双区域合规 | `Decision` | 确认香港与内地区域部署边界 |
+| API 契约 | `已完成` | 与工具箱团队冻结字段和错误码 |
+| 租户范围控制 | `原型可用` | 接入真实后台配置和审批记录 |
+| 异步任务 | `原型可用` | 替换内存队列，支持重试和并发控制 |
+| 结果持久化 | `原型可用` | 替换文件存储，使用数据库或对象存储 |
+| 审计 | `原型可用` | 接入集中审计、权限检索和留存策略 |
+| 留存策略 | `原型可用` | 接入定时清理任务和客户级策略 |
+| FOFA/uncover | `原型可用` | 明确生产供应商配置、限速、重试和降级 |
+| 鉴权签名 | `联调可用` | FastAPI 联调版已验签；生产需接入客户端密钥管理 |
+| 运维观测 | `待补齐` | 增加指标、日志、告警和追踪 |
+| 双区域合规 | `待决策` | 确认香港与内地区域部署边界 |
 
 ## 3. 鉴权与签名
 
 - [x] 提供 HMAC-SHA256 签名、时间窗校验和 nonce 防重放基础库。
 - [x] 防重放：nonce 在时间窗口内只能使用一次。
 - [x] 请求体参与签名，避免中间层篡改范围和 `result_limit`。
-- [x] 无框架 HTTP adapter 已接入签名校验和核心路由语义。
+- [x] 无框架 HTTP 适配器已接入签名校验和核心路由语义。
 - [x] FastAPI 联调交付版已接入 HTTP 层签名校验。
 - [ ] 客户端密钥按租户和工具箱实例隔离。
 - [ ] 支持客户端密钥轮换。
@@ -40,7 +40,7 @@
 ## 4. 租户隔离
 
 - [x] 任务、结果和审计事件包含 `tenant_id`。
-- [x] 结果 repository 按租户目录隔离。
+- [x] 结果存储实现按租户目录隔离。
 - [ ] 生产数据库表必须包含租户字段和索引。
 - [ ] 所有查询必须带租户条件，禁止只按 `task_id` 查询。
 - [ ] 管理后台跨租户访问必须使用单独权限和审计事件。
@@ -52,37 +52,37 @@
 - [x] 客户请求只能缩小后台配置范围。
 - [x] 越权范围返回 `scope_out_of_bounds`。
 - [ ] 后台录入范围需要审批人、客户授权证明和有效期。
-- [ ] 支持停用或版本化 scope profile。
-- [ ] 工具箱应在 profile 变更后重新拉取配置。
+- [ ] 支持停用或版本化范围配置。
+- [ ] 工具箱应在范围配置变更后重新拉取配置。
 
 ## 6. 供应商密钥管理
 
-- [x] 工具箱不保存 FOFA API Key。
-- [x] live 验证脚本只从环境变量读取 Key。
+- [x] 工具箱不保存 FOFA API 密钥。
+- [x] 真实调用验证脚本只从环境变量读取密钥。
 - [ ] 生产环境使用云 KMS、Vault 或等效密钥服务。
 - [ ] 密钥按区域、供应商、环境隔离。
 - [ ] 密钥访问必须有审计。
-- [ ] 错误日志不得输出 Key、认证头或完整签名串。
+- [ ] 错误日志不得输出密钥、认证头或完整签名串。
 - [ ] 支持供应商密钥轮换和灰度验证。
 
 ## 7. 队列与任务执行
 
 - [x] API 已采用异步 `queued` 模式。
-- [x] PoC worker 可消费任务并写入结果。
+- [x] PoC 工作进程可消费任务并写入结果。
 - [x] 联调交付版提供 SQLite 队列和 Redis 队列适配器。
-- [ ] 生产队列使用 Redis、RabbitMQ、SQS、Celery broker 或等效组件。
-- [ ] worker 支持并发上限、租户级限流和供应商级限流。
+- [ ] 生产队列使用 Redis、RabbitMQ、SQS、Celery 消息代理或等效组件。
+- [ ] 工作进程支持并发上限、租户级限流和供应商级限流。
 - [ ] 任务重试策略区分可恢复错误和不可恢复错误。
 - [ ] 支持任务取消。
 - [ ] 支持任务超时和死信队列。
-- [ ] worker 重启后不能丢任务。
+- [ ] 工作进程重启后不能丢任务。
 
 ## 8. 数据库与结果存储
 
-- [x] PoC 文件 repository 已拆分任务元数据和结果数据。
+- [x] PoC 文件存储已拆分任务元数据和结果数据。
 - [x] 结果按 `assets`、`services`、`source_evidence` 类型分页。
-- [x] 联调交付版提供 SQLite task/result/scope/nonce/audit 持久化实现。
-- [ ] 生产任务元数据表：任务状态、租户、profile、配额、错误、时间戳。
+- [x] 联调交付版提供 SQLite 任务、结果、范围、nonce 和审计持久化实现。
+- [ ] 生产任务元数据表：任务状态、租户、范围配置、配额、错误、时间戳。
 - [ ] 生产结果表或对象存储：资产、服务、证据分别存储。
 - [ ] 对 `tenant_id + task_id`、`tenant_id + created_at` 建索引。
 - [ ] 明确哪些字段加密存储。
@@ -101,15 +101,15 @@
 ## 10. 审计
 
 - [x] 网关 API 审计范围查看、任务请求、拒绝、排队和结果拉取。
-- [x] worker 审计任务开始、完成和失败。
+- [x] 工作进程审计任务开始、完成和失败。
 - [ ] 审计日志接入集中日志或审计数据库。
 - [ ] 审计日志支持按租户、任务、操作者和事件类型检索。
 - [ ] 审计日志留存期和访问权限按合同配置。
-- [ ] 管理后台修改密钥、配额、scope profile、留存策略必须审计。
+- [ ] 管理后台修改密钥、配额、范围配置、留存策略必须审计。
 
 ## 11. 配额与限速
 
-- [x] Scope profile 包含 `max_results_per_task` 和 `max_queries_per_task`。
+- [x] 范围配置包含 `max_results_per_task` 和 `max_queries_per_task`。
 - [x] 本地安全护栏限制种子数量、CIDR 范围和查询页数。
 - [ ] 实现租户级日配额、月配额和并发任务数。
 - [ ] 实现供应商级速率限制。
@@ -119,19 +119,19 @@
 ## 12. 错误模型
 
 - [x] 已定义 `ApiError` 和首批错误码。
-- [x] 范围越权和 profile mismatch 返回结构化错误。
+- [x] 范围越权和范围配置不匹配返回结构化错误。
 - [x] FOFA 原生错误映射到 `provider_auth_failed`、`provider_rate_limited`、`provider_timeout`、`provider_bad_response`。
-- [x] uncover sidecar 超时、非零退出和坏 JSONL 已转换为可解释错误或可降级解析。
+- [x] uncover 边车进程超时、非零退出和异常 JSONL 已转换为可解释错误或可降级解析。
 - [x] 执行层任务错误保留供应商标准 `code` 和 `recoverable` 标识。
-- [ ] worker 失败时补充更完整的重试建议和调度策略。
+- [ ] 工作进程失败时补充更完整的重试建议和调度策略。
 - [ ] 对工具箱返回错误不包含供应商原始敏感响应。
 
 ## 13. 观测与告警
 
 - [ ] 指标：任务创建数、成功率、失败率、平均耗时。
 - [ ] 指标：供应商调用次数、错误率、限速次数、超时次数。
-- [ ] 指标：队列长度、worker 并发、任务等待时间。
-- [ ] 日志：每个任务具备 correlation id。
+- [ ] 指标：队列长度、工作进程并发、任务等待时间。
+- [ ] 日志：每个任务具备关联 ID。
 - [ ] 告警：供应商认证失败、限速异常、失败率升高、队列堆积。
 - [ ] 告警：租户异常范围请求和高频失败。
 
@@ -157,7 +157,7 @@
 
 ## 16. 灾备与恢复
 
-- [ ] 任务队列可恢复，不因 worker 重启丢任务。
+- [ ] 任务队列可恢复，不因工作进程重启丢任务。
 - [ ] 数据库定期备份。
 - [ ] 审计日志不可被普通管理员静默删除。
 - [ ] 供应商不可用时返回部分结果和清晰失败原因。
@@ -169,7 +169,7 @@
 
 - HTTP API 层和签名鉴权。
 - 持久化数据库或可靠对象存储。
-- 可靠队列和 worker 重试策略。
+- 可靠队列和工作进程重试策略。
 - 生产级 FOFA/uncover 配置和错误映射。
 - 租户级配额与供应商限速。
 - 集中审计与留存清理。
@@ -178,62 +178,62 @@
 
 ## 18. 当前结论
 
-当前仓库已经具备“PoC 可验证”的主链路：范围约束、异步任务、worker 执行、FOFA/uncover fixture、live 验证脚本、结果分页、freshness、审计和留存基线。
+当前仓库已经具备“PoC 可验证”的主链路：范围约束、异步任务、工作进程执行、FOFA/uncover 固定样例数据、真实调用验证脚本、结果分页、新鲜度标注、审计和留存基线。
 
 但它还不是生产部署件。下一步应优先建设 HTTP API 层、真实持久化、可靠队列、供应商错误映射和鉴权签名。
 
-## 19. Production Launch Upgrade Baseline
+## 19. 生产上线准备版基线
 
-- Date: 2026-05-23
-- Branch: `codex/production-launch-ready-gateway`
-- Baseline commit: `f3f649d`
-- Windows environment note: plain `pytest` and `py -m pytest` were not available from PATH. The Codex bundled Python environment was used after installing project dev dependencies with `python.exe -m pip install -e ".[dev]"`.
-- Baseline repair: `f3f649d fix: preserve sqlite nonce replay window` aligns SQLite nonce cleanup with the request timestamp used by signed gateway requests.
-- Verification command: `C:\Users\op827\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe -m pytest`
-- Verification result: `175 passed in 2.02s`
+- 日期：2026-05-23
+- 分支：`codex/production-launch-ready-gateway`
+- 基线提交：`f3f649d`
+- Windows 环境说明：系统 PATH 中没有可用的 `pytest` 和 `py -m pytest`。安装项目开发依赖后，使用 Codex 自带 Python 环境执行验证。
+- 基线修复：`f3f649d fix: preserve sqlite nonce replay window`。该修复让 SQLite nonce 清理逻辑与签名网关请求中的时间戳保持一致。
+- 验证命令：`C:\Users\op827\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe -m pytest`
+- 验证结果：`175 passed in 2.02s`
 
-## 20. WSL Production Validation Bootstrap
+## 20. WSL 生产验证环境初始化
 
-- Date: 2026-05-23
-- Command: `powershell -ExecutionPolicy Bypass -File scripts\wsl_bootstrap.ps1`
-- Script behavior: installs or selects `Ubuntu-24.04`, enters the repository from WSL, installs Docker Engine, Docker Compose plugin, PostgreSQL client tools, Redis tools, Python 3.12, and project dev dependencies, then runs Docker/Python/Pytest verification commands.
-- Local run result: PASS after enabling WSL2 Windows features and rebooting the host.
-- WSL distribution: `Ubuntu-24.04`, Ubuntu 24.04.4 LTS, WSL2.
-- Docker Engine: `Docker version 29.5.2`.
-- Docker Compose: `Docker Compose version v5.1.4`.
-- PostgreSQL client: `psql (PostgreSQL) 16.14`.
-- Redis tools: `redis-cli 7.0.15`.
-- Python: `Python 3.12.3`.
-- WSL bootstrap pytest result: `196 passed, 4 skipped in 8.25s`.
-- Local network note: direct Docker Hub registry pulls were reset by the local network path. WSL Docker daemon was configured with reachable registry mirrors, and images were retained with standard local tags: `postgres:16`, `redis:7`, and `python:3.12-slim`.
+- 日期：2026-05-23
+- 命令：`powershell -ExecutionPolicy Bypass -File scripts\wsl_bootstrap.ps1`
+- 脚本行为：安装或选择 `Ubuntu-24.04`，从 WSL 进入仓库目录，安装 Docker Engine、Docker Compose 插件、PostgreSQL 客户端工具、Redis 工具、Python 3.12 和项目开发依赖，然后执行 Docker、Python 和 pytest 验证命令。
+- 本地执行结果：启用 WSL2 所需 Windows 功能并重启主机后通过。
+- WSL 发行版：`Ubuntu-24.04`，Ubuntu 24.04.4 LTS，WSL2。
+- Docker 引擎：`Docker version 29.5.2`。
+- Docker Compose：`Docker Compose version v5.1.4`。
+- PostgreSQL 客户端：`psql (PostgreSQL) 16.14`。
+- Redis 工具：`redis-cli 7.0.15`。
+- Python：`Python 3.12.3`。
+- WSL 初始化脚本中的 pytest 结果：`196 passed, 4 skipped in 8.25s`。
+- 本地网络说明：当前网络路径会重置 Docker Hub 仓库服务直连请求。已在 WSL Docker 守护进程中配置可访问的镜像源，并保留标准本地镜像标签：`postgres:16`、`redis:7`、`python:3.12-slim`。
 
-## 21. Production-Like CI
+## 21. 类生产 CI 验证
 
-- Workflow: `.github/workflows/prodlike.yml`
-- Services: PostgreSQL 16 and Redis 7 service containers.
-- Verification: install project dependencies, run Alembic migrations, execute full pytest suite with PostgreSQL and Redis integration URLs, and validate `docker-compose.prodlike.yml` with `docker compose config`.
+- 工作流：`.github/workflows/prodlike.yml`
+- 服务：PostgreSQL 16 和 Redis 7 服务容器。
+- 验证内容：安装项目依赖，执行 Alembic 迁移，使用 PostgreSQL 和 Redis 集成地址运行完整 pytest 套件，并通过 `docker compose config` 校验 `docker-compose.prodlike.yml`。
 
-## 22. Production Launch Verification - 2026-05-23
+## 22. 生产上线准备版验证记录 - 2026-05-23
 
-- Branch: `codex/production-launch-ready-gateway`
-- Windows test command: `C:\Users\op827\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe -m pytest`
-- Windows test result: `196 passed, 4 skipped in 3.40s`
-- WSL test command: `python3.12 -m venv .venv-wsl && . .venv-wsl/bin/activate && python -m pip install -e '.[dev]' && python -m pytest -q`
-- WSL test result: `196 passed, 4 skipped in 9.28s`
-- WSL bootstrap command: `powershell -ExecutionPolicy Bypass -File scripts\wsl_bootstrap.ps1`
-- WSL bootstrap result: Docker 29.5.2, Compose v5.1.4, Python 3.12.3, pytest 9.0.3, `196 passed, 4 skipped in 8.25s`
-- PostgreSQL/Redis integration command: `RESOURCE_DISCOVERY_DATABASE_URL=postgresql+psycopg://rd:rd@localhost:5432/rd RESOURCE_DISCOVERY_TEST_DATABASE_URL=postgresql+psycopg://rd:rd@localhost:5432/rd RESOURCE_DISCOVERY_TEST_REDIS_URL=redis://localhost:6379/0 python -m pytest tests/test_postgres_store.py tests/test_redis_queue.py tests/test_worker_retry.py -q`
-- PostgreSQL/Redis integration result: `9 passed in 3.42s`
-- Alembic offline command: `python.exe -m alembic -c alembic.ini upgrade head --sql`
-- Alembic offline result: generated SQL for all production tables and indexes successfully.
-- Compose static command: `docker compose -p rd-prodlike -f docker-compose.prodlike.yml config`
-- Compose static result: PASS inside WSL.
-- Production-like compose command: `docker compose -p rd-prodlike -f docker-compose.prodlike.yml up --build -d`
-- Production-like compose result: PostgreSQL healthy, Redis healthy, migration completed, API healthy, worker started.
-- Production-like smoke command: `python scripts/prodlike_smoke_test.py --base-url http://127.0.0.1:8000 --client-id toolbox --secret local-dev-secret`
-- Production-like smoke result: `{"status": "success", "asset_count": 3}`.
-- Compose cleanup command: `docker compose -p rd-prodlike -f docker-compose.prodlike.yml down -v`
-- Compose cleanup result: containers, network, and PostgreSQL validation volume removed.
-- Path compatibility note: Docker Compose v5/BuildKit produced non-ASCII project/session errors when building directly under the Chinese Windows path exposed through WSL. Validation was completed from `/tmp/rd-prodlike-src` with `-p rd-prodlike`, using an ASCII project directory and explicit compose project name.
-- Secret scan command: `rg -n "FOFA_API_KEY|local-dev-secret|secret-|token|api_key|password" . -g "!artifacts/**" -g "!.venv*/**" -g "!*.pyc" -g "!*.sqlite3"`
-- Secret scan result: PASS. Matches are placeholders, example client secrets, docs, test fixtures, field names, and code reading environment variables; no real provider key or production credential was found.
+- 分支：`codex/production-launch-ready-gateway`
+- Windows 测试命令：`C:\Users\op827\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe -m pytest`
+- Windows 测试结果：`196 passed, 4 skipped in 3.40s`
+- WSL 测试命令：`python3.12 -m venv .venv-wsl && . .venv-wsl/bin/activate && python -m pip install -e '.[dev]' && python -m pytest -q`
+- WSL 测试结果：`196 passed, 4 skipped in 9.28s`
+- WSL 初始化命令：`powershell -ExecutionPolicy Bypass -File scripts\wsl_bootstrap.ps1`
+- WSL 初始化结果：Docker 29.5.2、Compose v5.1.4、Python 3.12.3、pytest 9.0.3，`196 passed, 4 skipped in 8.25s`
+- PostgreSQL/Redis 集成测试命令：`RESOURCE_DISCOVERY_DATABASE_URL=postgresql+psycopg://rd:rd@localhost:5432/rd RESOURCE_DISCOVERY_TEST_DATABASE_URL=postgresql+psycopg://rd:rd@localhost:5432/rd RESOURCE_DISCOVERY_TEST_REDIS_URL=redis://localhost:6379/0 python -m pytest tests/test_postgres_store.py tests/test_redis_queue.py tests/test_worker_retry.py -q`
+- PostgreSQL/Redis 集成测试结果：`9 passed in 3.42s`
+- Alembic 离线迁移命令：`python.exe -m alembic -c alembic.ini upgrade head --sql`
+- Alembic 离线迁移结果：成功生成所有生产表和索引的 SQL。
+- Compose 静态校验命令：`docker compose -p rd-prodlike -f docker-compose.prodlike.yml config`
+- Compose 静态校验结果：在 WSL 内通过。
+- 类生产 compose 启动命令：`docker compose -p rd-prodlike -f docker-compose.prodlike.yml up --build -d`
+- 类生产 compose 启动结果：PostgreSQL 健康、Redis 健康、迁移完成、API 健康、工作进程已启动。
+- 类生产冒烟测试命令：`python scripts/prodlike_smoke_test.py --base-url http://127.0.0.1:8000 --client-id toolbox --secret local-dev-secret`
+- 类生产冒烟测试结果：`{"status": "success", "asset_count": 3}`。
+- Compose 清理命令：`docker compose -p rd-prodlike -f docker-compose.prodlike.yml down -v`
+- Compose 清理结果：容器、网络和 PostgreSQL 验证卷已删除。
+- 路径兼容性说明：在 WSL 暴露的中文 Windows 路径下直接构建时，Docker Compose v5/BuildKit 会出现非 ASCII 项目名或会话错误。最终验证从 `/tmp/rd-prodlike-src` 执行，并显式指定 `-p rd-prodlike`，即使用 ASCII 项目目录和固定 compose 项目名完成验证。
+- 敏感信息扫描命令：`rg -n "FOFA_API_KEY|local-dev-secret|secret-|token|api_key|password" . -g "!artifacts/**" -g "!.venv*/**" -g "!*.pyc" -g "!*.sqlite3"`
+- 敏感信息扫描结果：通过。命中项均为占位符、示例客户端密钥、文档、测试数据、字段名和读取环境变量的代码；未发现真实供应商密钥或生产凭据。
