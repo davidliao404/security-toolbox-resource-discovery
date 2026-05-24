@@ -96,6 +96,7 @@ POST /api/v1/discovery/tasks
     "org_names": []
   },
   "engines": ["fofa"],
+  "discovery_strategy": "baseline",
   "result_limit": 100,
   "purpose": "toolbox_asset_discovery"
 }
@@ -115,6 +116,7 @@ POST /api/v1/discovery/tasks
   "rejected_scope": [],
   "query_plan_summary": {
     "engines": ["fofa"],
+    "strategy": "baseline",
     "planned_queries": 3
   },
   "status_url": "/api/v1/discovery/tasks/dt_20260520_000001",
@@ -153,6 +155,9 @@ POST /api/v1/discovery/tasks
 - `queued`：进入轮询状态。
 - `rejected`：不要重试同一请求，提示用户缩小范围或联系安全服务人员更新后台授权配置。
 - 不要在客户端侧拼接供应商查询语句；只提交结构化范围。
+- 默认使用 `discovery_strategy="baseline"`，适合普通联调和低配额客户。
+- 需要更完整的被动互联网资产发现时，可使用 `discovery_strategy="easm"`；该策略仍只做被动发现，但会生成更多 FOFA 查询计划，可能因为租户 `max_queries_per_task` 不足被拒绝。
+- 如果返回 `invalid_discovery_strategy`，工具箱应回退到 `baseline` 或刷新服务端配置；如果返回 `query_plan_budget_exceeded`，工具箱应提示用户缩小范围或使用 `baseline`。
 
 ## 5. 轮询任务状态
 
@@ -280,6 +285,8 @@ GET /api/v1/discovery/tasks/{task_id}/results?result_type=assets&cursor=&limit=1
 | `scope_out_of_bounds` | 请求范围超过后台授权范围 | 否，提示缩小范围 |
 | `engine_not_allowed` | 请求的测绘引擎未授权 | 否，刷新配置或联系服务人员 |
 | `result_limit_exceeded` | 请求结果上限超过租户配置 | 否，降低上限 |
+| `invalid_discovery_strategy` | 请求的发现策略不受支持 | 否，回退到 `baseline` 或刷新配置 |
+| `query_plan_budget_exceeded` | 发现策略展开后的查询数超过租户上限 | 否，缩小范围或使用 `baseline` |
 | `provider_auth_failed` | 外部供应商认证失败 | 否，交由网关管理员处理 |
 | `provider_rate_limited` | 外部供应商限速 | 是，延迟重试 |
 | `provider_timeout` | 外部供应商超时 | 是，延迟重试 |

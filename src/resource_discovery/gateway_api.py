@@ -5,9 +5,15 @@ from typing import Any
 from uuid import uuid4
 
 from .audit import AuditEvent, AuditLogger
-from .errors import profile_id_mismatch_error, scope_out_of_bounds_error
+from .discovery_workflow import DiscoveryWorkflowConfig, build_query_plans
+from .errors import (
+    invalid_discovery_strategy_error,
+    profile_id_mismatch_error,
+    query_plan_budget_exceeded_error,
+    scope_out_of_bounds_error,
+)
 from .models import DiscoverySeed
-from .query_planner import plan_fofa_queries
+from .query_planner import SUPPORTED_STRATEGIES
 from .repositories import FileResultRepository, FileTaskRepository, ResultRepository, TaskRepository
 from .scope_guard import TenantScopeProfile, validate_requested_scope
 from .source_client import SourceClient
@@ -52,12 +58,15 @@ class DiscoveryGatewayApi:
         task_id = request.get("task_id") or _generate_task_id()
         engines = request.get("engines") or ["fofa"]
         result_limit = int(request.get("result_limit", self.profile.limits.get("max_results_per_task", 100)))
+        discovery_strategy = request.get("discovery_strategy") or "baseline"
+        max_query_plans = int(self.profile.limits.get("max_queries_per_task", 30))
         self._record(
             "discovery_task_requested",
             task_id,
             {
                 "profile_id": request.get("profile_id"),
                 "engines": engines,
+                "discovery_strategy": discovery_strategy,
                 "requested_scope_keys": sorted((request.get("requested_scope") or {}).keys()),
                 "result_limit": result_limit,
             },
@@ -70,6 +79,22 @@ class DiscoveryGatewayApi:
                 {
                     "reason": "profile_id_mismatch",
                     "rejected_count": 0,
+                },
+            )
+            return {
+                "status": "rejected",
+                "accepted_scope": {},
+                "rejected_scope": [],
+                "errors": [error.to_dict()],
+            }
+        if not isinstance(discovery_strategy, str) or discovery_strategy not in SUPPORTED_STRATEGIES:
+            error = invalid_discovery_strategy_error(discovery_strategy)
+            self._record(
+                "discovery_scope_rejected",
+                task_id,
+                {
+                    "reason": "invalid_discovery_strategy",
+                    "discovery_strategy": discovery_strategy,
                 },
             )
             return {
@@ -102,7 +127,34 @@ class DiscoveryGatewayApi:
             }
 
         seeds = seeds_from_scope(scope_result.accepted_scope, self.profile.authorization_note)
-        plans = plan_fofa_queries(task_id, seeds, page_limit=1, result_limit=result_limit)
+        plans = build_query_plans(
+            task_id,
+            seeds,
+            DiscoveryWorkflowConfig(
+                strategy=discovery_strategy,
+                max_query_plans=10_000,
+                page_limit=1,
+                result_limit=result_limit,
+            ),
+        )
+        if len(plans) > max_query_plans:
+            error = query_plan_budget_exceeded_error(max_query_plans, len(plans))
+            self._record(
+                "discovery_scope_rejected",
+                task_id,
+                {
+                    "reason": "query_plan_budget_exceeded",
+                    "discovery_strategy": discovery_strategy,
+                    "planned_queries": len(plans),
+                    "max_query_plans": max_query_plans,
+                },
+            )
+            return {
+                "status": "rejected",
+                "accepted_scope": scope_result.accepted_scope,
+                "rejected_scope": [],
+                "errors": [error.to_dict()],
+            }
         payload = _queued_task_payload(
             tenant_id=self.profile.tenant_id,
             task_id=task_id,
@@ -110,6 +162,8 @@ class DiscoveryGatewayApi:
             engines=engines,
             result_limit=result_limit,
             authorization_note=self.profile.authorization_note,
+            discovery_strategy=discovery_strategy,
+            max_query_plans=max_query_plans,
         )
         self.task_repository.create(payload)
         self.queue.enqueue(TaskWorkItem(tenant_id=self.profile.tenant_id, task_id=task_id))
@@ -118,6 +172,7 @@ class DiscoveryGatewayApi:
             task_id,
             {
                 "accepted_scope_keys": sorted(scope_result.accepted_scope.keys()),
+                "discovery_strategy": discovery_strategy,
                 "planned_queries": len(plans),
             },
         )
@@ -128,6 +183,7 @@ class DiscoveryGatewayApi:
             "rejected_scope": [],
             "query_plan_summary": {
                 "engines": engines,
+                "strategy": discovery_strategy,
                 "planned_queries": len(plans),
             },
             "status_url": f"/api/v1/discovery/tasks/{task_id}",
@@ -226,6 +282,8 @@ def _queued_task_payload(
     engines: list[str],
     result_limit: int,
     authorization_note: str | None,
+    discovery_strategy: str = "baseline",
+    max_query_plans: int = 30,
 ) -> dict[str, Any]:
     return {
         "task": {
@@ -240,6 +298,8 @@ def _queued_task_payload(
             "accepted_scope": accepted_scope,
             "engines": engines,
             "result_limit": result_limit,
+            "discovery_strategy": discovery_strategy,
+            "max_query_plans": max_query_plans,
         },
         "authorization_note": authorization_note,
         "snapshot": {

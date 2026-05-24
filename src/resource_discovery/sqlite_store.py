@@ -222,16 +222,17 @@ class SQLiteNonceRepository:
         self.window_seconds = window_seconds
 
     def remember_once(self, nonce: str, timestamp: datetime) -> bool:
-        expires_at = timestamp.astimezone(timezone.utc) + timedelta(seconds=self.window_seconds)
+        request_time = timestamp.astimezone(timezone.utc)
+        expires_at = request_time + timedelta(seconds=self.window_seconds)
         with _connect(self.db_path) as conn:
             conn.execute(
                 "delete from nonces where expires_at < ?",
-                (datetime.now(timezone.utc).isoformat(),),
+                (request_time.isoformat(),),
             )
             try:
                 conn.execute(
                     "insert into nonces (nonce, timestamp, expires_at) values (?, ?, ?)",
-                    (nonce, timestamp.astimezone(timezone.utc).isoformat(), expires_at.isoformat()),
+                    (nonce, request_time.isoformat(), expires_at.isoformat()),
                 )
             except sqlite3.IntegrityError:
                 return False

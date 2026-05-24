@@ -713,7 +713,7 @@ Expected: PASS.
 - Modify: `docs/resource-discovery/toolbox-handoff.md`
 - Test: `tests/test_gateway_api.py`
 
-- [ ] **Step 1: Write failing gateway test**
+- [x] **Step 1: Write failing gateway test**
 
 Add a test showing that a task request may specify:
 
@@ -732,7 +732,7 @@ and that the response `query_plan_summary` includes:
 }
 ```
 
-- [ ] **Step 2: Run gateway test and verify it fails**
+- [x] **Step 2: Run gateway test and verify it fails**
 
 Run:
 
@@ -742,11 +742,11 @@ Run:
 
 Expected: FAIL because strategy is not accepted or summarized.
 
-- [ ] **Step 3: Implement gateway strategy parsing**
+- [x] **Step 3: Implement gateway strategy parsing**
 
 Accept only `baseline` and `easm`. Reject unknown strategies with `invalid_discovery_strategy`. Use tenant `max_queries_per_task` to prevent expensive strategy expansion.
 
-- [ ] **Step 4: Update contract docs**
+- [x] **Step 4: Update contract docs**
 
 Document:
 
@@ -766,7 +766,7 @@ and:
 
 Explain that `easm` remains passive and may consume more provider quota.
 
-- [ ] **Step 5: Run gateway and docs-safe tests**
+- [x] **Step 5: Run gateway and docs-safe tests**
 
 Run:
 
