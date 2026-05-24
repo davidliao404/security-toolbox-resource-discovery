@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from .sqlite_store import _connect, _utcnow
@@ -34,32 +35,36 @@ class SQLiteTaskQueue:
             )
 
     def dequeue(self) -> TaskWorkItem | None:
+        now = _utcnow()
         with _connect(self.db_path) as conn:
             row = conn.execute(
                 """
                 select tenant_id, task_id from queue_jobs
-                where state='queued'
+                where state='queued' and available_at <= ?
                 order by created_at
                 limit 1
-                """
+                """,
+                (now,),
             ).fetchone()
             if row is None:
                 return None
             conn.execute(
                 "update queue_jobs set state='running', updated_at=? where tenant_id=? and task_id=?",
-                (_utcnow(), row["tenant_id"], row["task_id"]),
+                (now, row["tenant_id"], row["task_id"]),
             )
         return TaskWorkItem(row["tenant_id"], row["task_id"])
 
-    def mark_retry(self, item: TaskWorkItem, reason: str) -> None:
+    def mark_retry(self, item: TaskWorkItem, reason: str, delay_seconds: float = 0.0) -> None:
+        now = datetime.now(timezone.utc)
+        available_at = now + timedelta(seconds=max(0.0, delay_seconds))
         with _connect(self.db_path) as conn:
             conn.execute(
                 """
                 update queue_jobs
-                set state='queued', attempts=attempts + 1, last_error=?, updated_at=?
+                set state='queued', attempts=attempts + 1, last_error=?, available_at=?, updated_at=?
                 where tenant_id=? and task_id=?
                 """,
-                (reason, _utcnow(), item.tenant_id, item.task_id),
+                (reason, available_at.isoformat(), now.isoformat(), item.tenant_id, item.task_id),
             )
 
     def mark_done(self, item: TaskWorkItem) -> None:

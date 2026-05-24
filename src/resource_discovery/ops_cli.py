@@ -192,10 +192,9 @@ def _smoke_test(args: argparse.Namespace) -> int:
             break
         time.sleep(1)
 
-    result_path = f"/api/v1/discovery/tasks/{task_id}/results"
+    result_path = f"/api/v1/discovery/tasks/{task_id}/results?result_type=assets&limit=20"
     result_response = client.get(
         result_path,
-        params={"result_type": "assets", "limit": 20},
         headers=_signed_headers(args.secret, args.tenant_id, args.client_id, "GET", result_path, b""),
     )
     result_response.raise_for_status()

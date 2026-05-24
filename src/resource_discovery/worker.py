@@ -48,7 +48,6 @@ class TaskWorker:
             result_payload = self._execute(task_payload)
         except Exception as exc:
             reason = str(exc)
-            task_payload["task"]["status"] = "failed"
             task_payload["task"]["errors"] = [
                 {
                     "source": "fofa",
@@ -58,7 +57,6 @@ class TaskWorker:
                     "recoverable": True,
                 }
             ]
-            self.task_repository.update(task_payload)
             attempts = getattr(self.queue, "attempts", None)
             if attempts is None and hasattr(self.queue, "status"):
                 try:
@@ -67,6 +65,8 @@ class TaskWorker:
                     attempts = 0
             attempts = int(attempts or 0)
             if attempts + 1 < self.max_attempts and hasattr(self.queue, "mark_retry"):
+                task_payload["task"]["status"] = "retrying"
+                self.task_repository.update(task_payload)
                 try:
                     self.queue.mark_retry(item, reason, delay_seconds=self.retry_delay_seconds)
                 except TypeError:
@@ -78,6 +78,8 @@ class TaskWorker:
                     {"message": reason, "attempt": attempts + 1, "max_attempts": self.max_attempts},
                 )
                 return {"processed": True, "task_id": item.task_id, "status": "retrying"}
+            task_payload["task"]["status"] = "failed"
+            self.task_repository.update(task_payload)
             if hasattr(self.queue, "mark_failed"):
                 self.queue.mark_failed(item, reason)
             self._record(
@@ -89,8 +91,9 @@ class TaskWorker:
             return {"processed": True, "task_id": item.task_id, "status": "failed"}
         if _status_value(result_payload["task"]["status"]) == "failed" and _has_recoverable_error(result_payload):
             reason = _first_error_message(result_payload)
-            self.task_repository.update(result_payload)
             if self._retry_or_fail(item, reason):
+                result_payload["task"]["status"] = "retrying"
+                self.task_repository.update(result_payload)
                 self._record(
                     "discovery_task_retry_scheduled",
                     item.tenant_id,
@@ -98,6 +101,7 @@ class TaskWorker:
                     {"message": reason, "max_attempts": self.max_attempts},
                 )
                 return {"processed": True, "task_id": item.task_id, "status": "retrying"}
+            self.task_repository.update(result_payload)
             self._record(
                 "discovery_task_failed",
                 item.tenant_id,

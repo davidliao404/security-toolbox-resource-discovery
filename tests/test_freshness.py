@@ -20,6 +20,26 @@ def test_build_freshness_marks_six_month_old_updates_as_stale():
     assert freshness["age_days"] > 180
 
 
+def test_build_freshness_marks_middle_age_updates_as_aging():
+    freshness = build_freshness("2026-01-01", now="2026-05-20T00:00:00+00:00")
+
+    assert freshness["status"] == "aging"
+    assert freshness["last_observed_at"] == "2026-01-01T00:00:00+00:00"
+
+
+def test_build_freshness_accepts_zulu_time_and_clamps_future_age():
+    freshness = build_freshness("2026-05-21T00:00:00Z", now="2026-05-20T00:00:00+00:00")
+
+    assert freshness["status"] == "fresh"
+    assert freshness["age_days"] == 0
+
+
+def test_build_freshness_marks_invalid_time_as_unknown():
+    freshness = build_freshness("not-a-time", now="2026-05-20T00:00:00+00:00")
+
+    assert freshness["status"] == "unknown"
+
+
 def test_build_freshness_marks_missing_time_as_unknown():
     freshness = build_freshness(None, now="2026-05-20T00:00:00+00:00")
 

@@ -121,3 +121,45 @@ def test_verify_signature_rejects_stale_timestamp_and_bad_signature():
         assert exc.code == "invalid_signature"
     else:
         raise AssertionError("Expected bad signature to be rejected")
+
+
+def test_verify_signature_rejects_invalid_timestamp_and_accepts_naive_utc():
+    now = datetime(2026, 5, 20, 12, 0, tzinfo=timezone.utc)
+
+    try:
+        verify_signature(
+            secret="client-secret",
+            method="GET",
+            path="/api/v1/discovery/scope-profile",
+            timestamp="not-a-time",
+            nonce="nonce-001",
+            body=b"",
+            signature="bad",
+            now=now,
+            nonce_store=InMemoryNonceStore(),
+        )
+    except AuthError as exc:
+        assert exc.code == "invalid_timestamp"
+    else:
+        raise AssertionError("Expected invalid timestamp to be rejected")
+
+    signature = build_signature(
+        secret="client-secret",
+        method="GET",
+        path="/api/v1/discovery/scope-profile",
+        timestamp="2026-05-20T12:00:00",
+        nonce="nonce-002",
+        body=b"",
+    )
+
+    assert verify_signature(
+        secret="client-secret",
+        method="GET",
+        path="/api/v1/discovery/scope-profile",
+        timestamp="2026-05-20T12:00:00",
+        nonce="nonce-002",
+        body=b"",
+        signature=signature,
+        now=now,
+        nonce_store=InMemoryNonceStore(),
+    )

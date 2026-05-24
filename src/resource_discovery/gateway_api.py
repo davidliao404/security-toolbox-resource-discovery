@@ -10,12 +10,13 @@ from .errors import (
     invalid_discovery_strategy_error,
     profile_id_mismatch_error,
     query_plan_budget_exceeded_error,
+    scope_validation_error,
     scope_out_of_bounds_error,
 )
 from .models import DiscoverySeed
 from .query_planner import SUPPORTED_STRATEGIES
 from .repositories import FileResultRepository, FileTaskRepository, ResultRepository, TaskRepository
-from .scope_guard import TenantScopeProfile, validate_requested_scope
+from .scope_guard import ScopeValidationError, TenantScopeProfile, validate_requested_scope
 from .source_client import SourceClient
 from .task_queue import InMemoryTaskQueue, TaskWorkItem
 
@@ -103,12 +104,29 @@ class DiscoveryGatewayApi:
                 "rejected_scope": [],
                 "errors": [error.to_dict()],
             }
-        scope_result = validate_requested_scope(
-            self.profile,
-            request.get("requested_scope") or {},
-            engines=engines,
-            result_limit=result_limit,
-        )
+        try:
+            scope_result = validate_requested_scope(
+                self.profile,
+                request.get("requested_scope") or {},
+                engines=engines,
+                result_limit=result_limit,
+            )
+        except ScopeValidationError as exc:
+            error = scope_validation_error(str(exc))
+            self._record(
+                "discovery_scope_rejected",
+                task_id,
+                {
+                    "reason": "scope_validation_failed",
+                    "message": str(exc),
+                },
+            )
+            return {
+                "status": "rejected",
+                "accepted_scope": {},
+                "rejected_scope": [],
+                "errors": [error.to_dict()],
+            }
         if scope_result.rejected_scope:
             error = scope_out_of_bounds_error(self.profile.profile_id, scope_result.rejected_scope)
             self._record(

@@ -60,6 +60,24 @@ def test_validate_requested_scope_accepts_subset_scope():
     assert result.rejected_scope == []
 
 
+def test_validate_requested_scope_accepts_subdomain_of_allowed_root_and_org():
+    result = validate_requested_scope(
+        _profile(),
+        {
+            "domains": ["api.example.com"],
+            "org_names": ["Example Limited"],
+        },
+        engines=["fofa"],
+        result_limit=100,
+    )
+
+    assert result.accepted_scope == {
+        "domains": ["api.example.com"],
+        "org_names": ["Example Limited"],
+    }
+    assert result.rejected_scope == []
+
+
 def test_validate_requested_scope_uses_default_scope_when_empty():
     result = validate_requested_scope(_profile(), {}, engines=["fofa"], result_limit=100)
 
@@ -95,6 +113,28 @@ def test_validate_requested_scope_rejects_wider_cidr():
 
     assert result.accepted_scope == {}
     assert result.rejected_scope[0]["reason"] == "outside_tenant_allowed_scope"
+
+
+def test_validate_requested_scope_rejects_invalid_cidr_and_org():
+    result = validate_requested_scope(
+        _profile(),
+        {"ip_cidrs": ["not-cidr"], "org_names": ["Other Limited"]},
+        engines=["fofa"],
+        result_limit=100,
+    )
+
+    assert [item["type"] for item in result.rejected_scope] == ["ip_cidr", "organization_name"]
+
+
+def test_validate_requested_scope_rejects_inactive_profile():
+    profile = TenantScopeProfile(
+        tenant_id="tenant_poc",
+        profile_id="scope_profile_001",
+        status="inactive",
+    )
+
+    with pytest.raises(ScopeValidationError, match="not active"):
+        validate_requested_scope(profile, {}, engines=["fofa"], result_limit=100)
 
 
 def test_validate_requested_scope_rejects_disallowed_engine():

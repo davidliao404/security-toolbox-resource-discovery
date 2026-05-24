@@ -38,6 +38,15 @@ def scope_out_of_bounds_error(profile_id: str, rejected_scope: list[dict[str, st
     )
 
 
+def scope_validation_error(message: str) -> ApiError:
+    return ApiError(
+        code="scope_validation_failed",
+        message=message,
+        recoverable=False,
+        details={},
+    )
+
+
 def invalid_discovery_strategy_error(strategy: str) -> ApiError:
     return ApiError(
         code="invalid_discovery_strategy",

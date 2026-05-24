@@ -1,4 +1,5 @@
 from resource_discovery.config import GatewaySettings, load_settings
+import pytest
 
 
 def test_load_settings_uses_defaults(monkeypatch):
@@ -69,3 +70,18 @@ def test_gateway_settings_rejects_unknown_log_format():
         assert "Unsupported log format" in str(exc)
     else:
         raise AssertionError("Expected unsupported log format to be rejected")
+
+
+@pytest.mark.parametrize(
+    ("kwargs", "message"),
+    [
+        ({"result_limit_default": 0}, "RESULT_LIMIT_DEFAULT"),
+        ({"result_limit_default": 100, "result_limit_max": 50}, "RESULT_LIMIT_MAX"),
+        ({"nonce_window_seconds": 0}, "NONCE_WINDOW_SECONDS"),
+        ({"worker_max_attempts": 0}, "WORKER_MAX_ATTEMPTS"),
+        ({"worker_retry_delay_seconds": -1}, "WORKER_RETRY_DELAY_SECONDS"),
+    ],
+)
+def test_gateway_settings_rejects_invalid_numeric_limits(kwargs, message):
+    with pytest.raises(ValueError, match=message):
+        GatewaySettings(**kwargs)

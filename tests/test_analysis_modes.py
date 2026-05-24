@@ -2,6 +2,7 @@ import pytest
 
 from resource_discovery.analysis import (
     LlmAnalysisUnavailable,
+    apply_analysis,
     build_minimal_llm_context,
     enrich_risk_hints,
 )
@@ -52,6 +53,11 @@ def test_rules_plus_llm_requires_explicit_enricher():
             fixture_path="tests/fixtures/fofa_results.json",
             analysis_mode="rules_plus_llm",
         )
+
+
+def test_apply_analysis_rejects_unknown_mode():
+    with pytest.raises(ValueError, match="Unsupported analysis_mode"):
+        apply_analysis([], analysis_mode="magic")
 
 
 def test_rules_plus_llm_uses_injected_enricher_with_minimal_context():
@@ -207,3 +213,106 @@ def test_llm_usage_metadata_is_sanitized():
         "total_tokens": 12,
         "estimated_cost_usd": 0.0,
     }
+
+
+def test_analysis_handles_malformed_enrichment_values():
+    risks = [
+        {
+            "risk_hint_id": "risk_1",
+            "category": "remote_access",
+            "severity": "high",
+            "technical_evidence": [],
+            "confidence": "not-a-number",
+        }
+    ]
+
+    enriched = enrich_risk_hints(
+        risks,
+        {
+            "provider": "fake",
+            "model": "fake-risk-model",
+            "items": [
+                {
+                    "risk_hint_id": "risk_1",
+                    "confidence_adjustment": "not-a-number",
+                    "external_context_summary": None,
+                }
+            ],
+        },
+    )
+
+    assert enriched[0]["analysis_confidence"] == 0.0
+    assert enriched[0]["llm_enrichment"]["confidence_adjustment"] == 0.0
+    assert enriched[0]["llm_enrichment"]["external_context_summary"] == ""
+
+
+def test_apply_analysis_uses_requested_provider_model_and_ignores_non_dict_usage():
+    class FakeEnricher:
+        def enrich(self, context):
+            return {"items": "not-a-list", "usage": "bad"}
+
+    risks = [{"risk_hint_id": "risk_1", "technical_evidence": ["target: vpn.example.org"], "confidence": 0.5}]
+
+    enriched, analysis = apply_analysis(
+        risks,
+        analysis_mode="rules_plus_llm",
+        llm_enricher=FakeEnricher(),
+        llm_provider="provider-a",
+        llm_model="model-a",
+        llm_authorization_id="auth-1",
+    )
+
+    assert enriched == risks
+    assert analysis["provider"] == "provider-a"
+    assert analysis["model"] == "model-a"
+    assert analysis["authorization_id"] == "auth-1"
+    assert "usage" not in analysis
+
+
+def test_llm_usage_sanitizes_invalid_numbers_and_raises_total_to_parts():
+    class FakeEnricher:
+        def enrich(self, context):
+            return {
+                "provider": "fake",
+                "model": "fake-risk-model",
+                "items": [],
+                "usage": {
+                    "prompt_tokens": "bad",
+                    "completion_tokens": None,
+                    "total_tokens": 1,
+                    "estimated_cost_usd": "bad",
+                },
+            }
+
+    _, analysis = apply_analysis(
+        [],
+        analysis_mode="rules_plus_llm",
+        llm_enricher=FakeEnricher(),
+    )
+
+    assert analysis["usage"] == {
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "total_tokens": 1,
+        "estimated_cost_usd": 0.0,
+    }
+
+
+def test_llm_usage_total_is_at_least_prompt_plus_completion():
+    class FakeEnricher:
+        def enrich(self, context):
+            return {
+                "provider": "fake",
+                "model": "fake-risk-model",
+                "items": [],
+                "usage": {
+                    "prompt_tokens": 2,
+                    "completion_tokens": 3,
+                    "total_tokens": 1,
+                    "estimated_cost_usd": 0.01,
+                },
+            }
+
+    _, analysis = apply_analysis([], analysis_mode="rules_plus_llm", llm_enricher=FakeEnricher())
+
+    assert analysis["usage"]["total_tokens"] == 5

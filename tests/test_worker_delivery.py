@@ -1,12 +1,16 @@
 from pathlib import Path
+import sys
+from types import SimpleNamespace
 
+from resource_discovery.config import GatewaySettings
 from resource_discovery.gateway_api import DiscoveryGatewayApi
 from resource_discovery.queue_backends import SQLiteTaskQueue
 from resource_discovery.scope_guard import TenantScopeProfile
 from resource_discovery.source_client import FixtureSourceClient
 from resource_discovery.sqlite_store import SQLiteResultRepository, SQLiteTaskRepository, initialize_sqlite
 from resource_discovery.worker import TaskWorker
-from resource_discovery.worker_cli import run_worker
+import resource_discovery.worker_cli as worker_cli
+from resource_discovery.worker_cli import main, run_worker
 
 
 def _profile():
@@ -84,3 +88,69 @@ def test_run_worker_supports_bounded_loop(tmp_path):
 
     assert results[0]["processed"] is True
     assert results[1]["processed"] is False
+
+
+def test_run_worker_sleeps_when_looping_without_work(monkeypatch):
+    class EmptyWorker:
+        def run_once(self):
+            return {"processed": False}
+
+    sleeps = []
+    monkeypatch.setattr(worker_cli.time, "sleep", lambda seconds: sleeps.append(seconds))
+
+    results = run_worker(EmptyWorker(), loop=True, interval_seconds=0.5, max_iterations=2)
+
+    assert results == [{"processed": False}, {"processed": False}]
+    assert sleeps == [0.5]
+
+
+def test_worker_cli_main_runs_default_sqlite_path(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "worker",
+            "--sqlite-path",
+            str(tmp_path / "gateway.sqlite3"),
+            "--fixture",
+            "tests/fixtures/fofa_results.json",
+        ],
+    )
+
+    assert main() == 0
+    assert "'processed': False" in capsys.readouterr().out
+
+
+def test_worker_cli_main_uses_settings_env(monkeypatch, capsys):
+    class EmptyWorker:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def run_once(self):
+            return {"processed": False}
+
+    monkeypatch.setattr(worker_cli, "load_settings", lambda: GatewaySettings(fixture_path="tests/fixtures/fofa_results.json"))
+    monkeypatch.setattr(
+        worker_cli,
+        "build_repositories",
+        lambda settings: SimpleNamespace(task_repository=object(), result_repository=object()),
+    )
+    monkeypatch.setattr(worker_cli, "build_queue", lambda settings: object())
+    monkeypatch.setattr(worker_cli, "TaskWorker", EmptyWorker)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "worker",
+            "--settings-env",
+            "prodlike",
+            "--loop",
+            "--interval-seconds",
+            "0",
+            "--max-iterations",
+            "1",
+        ],
+    )
+
+    assert main() == 0
+    assert "'processed': False" in capsys.readouterr().out

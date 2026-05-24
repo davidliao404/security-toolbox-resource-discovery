@@ -111,16 +111,35 @@ def create_app(
 
     async def require_auth(request: Request) -> dict[str, str] | JSONResponse:
         body = await request.body()
+        path = request.url.path
+        if request.url.query:
+            path = f"{path}?{request.url.query}"
         try:
-            return authenticate_http_request(
+            auth = authenticate_http_request(
                 method=request.method,
-                path=request.url.path,
+                path=path,
                 body=body,
                 headers=request.headers,
                 resolver=resolver,
                 nonce_store=nonce_store,
                 now=clock(),
             )
+            if auth["tenant_id"] != gateway_api.profile.tenant_id:
+                return JSONResponse(
+                    status_code=403,
+                    content={
+                        "status": "rejected",
+                        "errors": [
+                            {
+                                "code": "tenant_mismatch",
+                                "message": "Authenticated tenant does not match the active scope profile.",
+                                "recoverable": False,
+                                "details": {},
+                            }
+                        ],
+                    },
+                )
+            return auth
         except AuthError as exc:
             metrics.auth_failures.labels(exc.code).inc()
             return JSONResponse(

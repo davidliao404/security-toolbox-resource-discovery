@@ -49,6 +49,20 @@ def test_enabled_tenant_analysis_config_requires_minimal_data_sharing():
         config.resolve_options("tenant_poc")
 
 
+def test_tenant_analysis_config_rejects_unknown_data_sharing_level():
+    config = TenantAnalysisConfig(tenant_id="tenant_poc", data_sharing_level="full")
+
+    with pytest.raises(AnalysisConfigError, match="data_sharing_level"):
+        config.resolve_options("tenant_poc")
+
+
+def test_enabled_tenant_analysis_config_requires_provider_and_model():
+    config = _authorized_llm_config(llm_provider="", llm_model="")
+
+    with pytest.raises(AnalysisConfigError, match="llm_provider"):
+        config.resolve_options("tenant_poc")
+
+
 def test_enabled_tenant_analysis_config_resolves_rules_plus_llm():
     config = _authorized_llm_config()
 
@@ -109,6 +123,14 @@ def test_load_tenant_analysis_config_from_json(tmp_path):
 
     assert config.resolve_options("tenant_poc")["analysis_mode"] == "rules_only"
     assert config.resolve_options("tenant_poc")["data_sharing_level"] == "none"
+
+
+def test_load_tenant_analysis_config_rejects_unknown_fields(tmp_path):
+    path = tmp_path / "analysis-config.json"
+    path.write_text(json.dumps({"tenant_id": "tenant_poc", "unexpected": True}), encoding="utf-8")
+
+    with pytest.raises(AnalysisConfigError, match="Unknown"):
+        load_tenant_analysis_config(path)
 
 
 def test_example_llm_tenant_analysis_config_is_valid():

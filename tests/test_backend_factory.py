@@ -8,6 +8,7 @@ from resource_discovery.http_app import create_app_from_settings
 from resource_discovery.queue_backends import SQLiteTaskQueue
 from resource_discovery.redis_queue import RedisTaskQueue
 from resource_discovery.sqlite_store import SQLiteTaskRepository
+from resource_discovery.task_queue import InMemoryTaskQueue
 
 
 def test_backend_factory_builds_sqlite_defaults(tmp_path):
@@ -34,6 +35,13 @@ def test_backend_factory_builds_redis_queue():
 
     assert isinstance(queue, RedisTaskQueue)
     assert queue.redis_url == "redis://localhost:6379/9"
+
+
+def test_backend_factory_builds_memory_queue_and_requires_redis_url():
+    assert isinstance(build_queue(GatewaySettings(queue_backend="memory")), InMemoryTaskQueue)
+
+    with pytest.raises(ValueError, match="REDIS_URL"):
+        build_queue(GatewaySettings(queue_backend="redis", redis_url=""))
 
 
 def test_create_app_from_settings_exposes_configured_backend_names(tmp_path):

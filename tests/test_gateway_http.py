@@ -129,3 +129,72 @@ def test_http_handler_rejects_bad_signature(tmp_path):
 
     assert response.status_code == 401
     assert response.json["errors"][0]["code"] == "invalid_signature"
+
+
+def test_http_handler_rejects_unknown_client_and_missing_header(tmp_path):
+    handler, *_ = _handler(tmp_path)
+    path = "/api/v1/discovery/scope-profile"
+
+    unknown = handler.handle("GET", path, headers={"X-Client-Id": "missing"}, body=b"")
+    missing = handler.handle("GET", path, headers={"X-Client-Id": "client_001"}, body=b"")
+
+    assert unknown.status_code == 401
+    assert unknown.json["errors"][0]["code"] == "unknown_client"
+    assert missing.status_code == 401
+    assert missing.json["errors"][0]["code"] == "missing_auth_header"
+
+
+def test_http_handler_returns_bad_request_for_invalid_json(tmp_path):
+    handler, *_ = _handler(tmp_path)
+    path = "/api/v1/discovery/tasks"
+
+    response = handler.handle("POST", path, headers=_headers("POST", path, body=b"{"), body=b"{")
+
+    assert response.status_code == 400
+    assert response.json["errors"][0]["code"] == "bad_request"
+
+
+def test_http_handler_returns_not_found_for_unknown_route(tmp_path):
+    handler, *_ = _handler(tmp_path)
+    path = "/api/v1/unknown"
+
+    response = handler.handle("GET", path, headers=_headers("GET", path), body=b"")
+
+    assert response.status_code == 404
+    assert response.json["errors"][0]["code"] == "not_found"
+
+
+def test_http_handler_wraps_unexpected_errors(tmp_path):
+    handler, *_ = _handler(tmp_path)
+    path = "/api/v1/discovery/scope-profile"
+    handler.api.get_scope_profile = lambda: (_ for _ in ()).throw(RuntimeError("boom"))
+
+    response = handler.handle("GET", path, headers=_headers("GET", path), body=b"")
+
+    assert response.status_code == 500
+    assert response.json["errors"][0]["code"] == "internal_error"
+
+
+def test_http_handler_fetches_task_status(tmp_path):
+    handler, queue, task_repo, _ = _handler(tmp_path)
+    path = "/api/v1/discovery/tasks"
+    body = json.dumps(
+        {
+            "task_id": "dt_http_status",
+            "profile_id": "scope_profile_001",
+            "requested_scope": {"root_domains": ["example.org"]},
+            "engines": ["fofa"],
+            "result_limit": 50,
+        }
+    ).encode("utf-8")
+    handler.handle("POST", path, headers=_headers("POST", path, body=body), body=body)
+
+    response = handler.handle(
+        "GET",
+        "/api/v1/discovery/tasks/dt_http_status",
+        headers=_headers("GET", "/api/v1/discovery/tasks/dt_http_status", nonce="nonce-003"),
+        body=b"",
+    )
+
+    assert response.status_code == 200
+    assert response.json["task_id"] == "dt_http_status"

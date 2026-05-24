@@ -87,3 +87,20 @@ def test_rejects_unsupported_seed_type():
 
     with pytest.raises(ValueError, match="Unsupported seed type"):
         plan_fofa_queries("dt_001", seeds)
+
+
+def test_rejects_empty_seed_value_for_each_strategy():
+    seeds = [DiscoverySeed(seed_id="s1", type="root_domain", value=" ")]
+
+    with pytest.raises(ValueError, match="value is empty"):
+        plan_fofa_queries("dt_001", seeds)
+    with pytest.raises(ValueError, match="value is empty"):
+        plan_fofa_queries("dt_001", seeds, strategy="easm")
+
+
+def test_fofa_query_values_escape_quotes_and_backslashes():
+    seeds = [DiscoverySeed(seed_id="s1", type="organization_name", value='Example "A\\B"')]
+
+    plans = plan_fofa_queries("dt_001", seeds)
+
+    assert '\\"A\\\\B\\"' in plans[0].source_query
