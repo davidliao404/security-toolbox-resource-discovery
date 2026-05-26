@@ -36,6 +36,11 @@ def test_metrics_endpoint_can_be_enabled(tmp_path):
 
     assert response.status_code == 200
     assert "resource_discovery_requests_total" in response.text
+    assert "resource_discovery_tasks_created_total" in response.text
+    assert "resource_discovery_tasks_completed_total" in response.text
+    assert "resource_discovery_provider_errors_total" in response.text
+    assert "resource_discovery_dead_letters_total" in response.text
+    assert "resource_discovery_quota_rejections_total" in response.text
 
 
 def test_metrics_endpoint_can_be_disabled(tmp_path):

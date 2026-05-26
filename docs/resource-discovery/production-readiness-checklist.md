@@ -22,7 +22,7 @@
 | 审计 | `原型可用` | 接入集中审计、权限检索和留存策略 |
 | 留存策略 | `原型可用` | 接入定时清理任务和客户级策略 |
 | FOFA/uncover | `原型可用` | 明确生产供应商配置、限速、重试和降级 |
-| 鉴权签名 | `联调可用` | FastAPI 联调版已验签；生产需接入客户端密钥管理 |
+| 鉴权签名 | `联调可用` | FastAPI 联调版已验签；生产第一版使用静态客户端密钥管理 |
 | 运维观测 | `待补齐` | 增加指标、日志、告警和追踪 |
 | 双区域合规 | `待决策` | 确认香港与内地区域部署边界 |
 
@@ -33,8 +33,8 @@
 - [x] 请求体参与签名，避免中间层篡改范围和 `result_limit`。
 - [x] 无框架 HTTP 适配器已接入签名校验和核心路由语义。
 - [x] FastAPI 联调交付版已接入 HTTP 层签名校验。
-- [ ] 客户端密钥按租户和工具箱实例隔离。
-- [ ] 支持客户端密钥轮换。
+- [x] 客户端签名密钥支持按租户和工具箱实例隔离的 PostgreSQL `secret_ref` 存储。
+- [x] 支持通过 ops CLI 轮换客户端签名密钥引用。
 - [ ] 鉴权失败不返回内部配置或签名计算细节。
 
 ## 4. 租户隔离
@@ -51,7 +51,7 @@
 - [x] `TenantScopeProfile` 支持根域名、域名、IP 段、组织名、引擎和限额。
 - [x] 客户请求只能缩小后台配置范围。
 - [x] 越权范围返回 `scope_out_of_bounds`。
-- [ ] 后台录入范围需要审批人、客户授权证明和有效期。
+- [x] 后台录入范围支持审批人、工单号和审批时间记录。
 - [ ] 支持停用或版本化范围配置。
 - [ ] 工具箱应在范围配置变更后重新拉取配置。
 
@@ -73,8 +73,8 @@
 - [ ] 生产队列使用 Redis、RabbitMQ、SQS、Celery 消息代理或等效组件。
 - [ ] 工作进程支持并发上限、租户级限流和供应商级限流。
 - [ ] 任务重试策略区分可恢复错误和不可恢复错误。
-- [ ] 支持任务取消。
-- [ ] 支持任务超时和死信队列。
+- [x] 支持任务取消。
+- [x] 支持死信队列查看。
 - [ ] 工作进程重启后不能丢任务。
 
 ## 8. 数据库与结果存储
@@ -92,8 +92,8 @@
 
 - [x] 默认策略：任务元数据 180 天、结果快照 90 天、审计日志 365 天。
 - [x] PoC 提供过期文件清理函数。
-- [ ] 生产定时任务定期执行清理。
-- [ ] 支持租户级留存策略。
+- [x] 提供 PostgreSQL 租户级留存清理 repository 和 ops CLI 入口。
+- [x] 支持租户级留存策略。
 - [ ] 清理动作写入审计。
 - [ ] 删除客户数据前保留必要证明，但不保留完整结果。
 - [ ] 停用租户后的清理和匿名化流程需单独确认。
@@ -103,7 +103,7 @@
 - [x] 网关 API 审计范围查看、任务请求、拒绝、排队和结果拉取。
 - [x] 工作进程审计任务开始、完成和失败。
 - [ ] 审计日志接入集中日志或审计数据库。
-- [ ] 审计日志支持按租户、任务、操作者和事件类型检索。
+- [x] 审计日志支持按租户、任务和事件类型检索。
 - [ ] 审计日志留存期和访问权限按合同配置。
 - [ ] 管理后台修改密钥、配额、范围配置、留存策略必须审计。
 
@@ -111,8 +111,8 @@
 
 - [x] 范围配置包含 `max_results_per_task` 和 `max_queries_per_task`。
 - [x] 本地安全护栏限制种子数量、CIDR 范围和查询页数。
-- [ ] 实现租户级日配额、月配额和并发任务数。
-- [ ] 实现供应商级速率限制。
+- [x] 实现租户级日任务配额和并发任务数校验。
+- [x] 实现供应商级日查询配额校验和 PostgreSQL bucket 仓储。
 - [ ] `provider_rate_limited` 应触发延迟重试，而不是立即失败。
 - [ ] 管理后台展示配额消耗和即将耗尽提示。
 
@@ -279,8 +279,24 @@ WSL 真实 PostgreSQL/Redis 验证：
 
 后续生产交付重点：
 
-- 客户端密钥管理和轮换。
-- scope profile 管理、审批和审计。
-- 租户配额、供应商限速、任务取消和死信队列操作。
-- 集中审计、指标、留存清理和告警。
-- 受控真实 FOFA 回归验证。
+- 客户端静态密钥管理和轮换已完成：PostgreSQL `secret_ref` 仓储、静态解析服务和 `rotate-client-secret` 运维命令。
+- scope profile 管理、审批和审计已完成第一版 CLI。
+- 租户配额、供应商限速、任务取消和死信队列操作已完成第一版实现。
+- 审计检索、指标和留存清理已完成第一版实现；告警接入仍需部署侧配置。
+- 受控真实 FOFA 回归已完成环境门禁；当前本地未配置真实授权凭据，状态记录为 `not_run`。
+
+## 24. 生产运维硬化验证记录 - 2026-05-26
+
+- 分支：`master`
+- 计划文档：`docs/superpowers/plans/2026-05-24-production-operations-hardening.md`
+- 静态客户端密钥：已实现 `ClientSecretRecord`、`StaticSecretMaterialResolver`、PostgreSQL `secret_ref` 仓储和 `rotate-client-secret`。
+- 范围审批：已实现 `approval` 元数据、`approve-scope-profile` 和 `scope_profile_approved` 审计事件。
+- 配额限速：已实现租户日任务数、并发任务数、供应商日查询数校验，以及 PostgreSQL bucket 仓储。
+- 任务运维：已实现 `cancel-task`、worker 执行前取消识别和 `list-dead-letters`。
+- 审计留存指标：已实现按租户/任务/事件类型检索、PostgreSQL 租户留存清理和生产指标 counter。
+- 真实 FOFA 回归：已实现 `live-fofa-regression` 环境门禁和脱敏摘要；本地未配置真实授权凭据，记录为 `not_run`。
+- Windows 全量测试：`315 passed, 4 skipped in 4.58s`。
+- Windows 覆盖率：`315 passed, 4 skipped in 6.81s`，总覆盖率 `98.32%`。
+- whitespace 检查：`git diff --check` 通过。
+- WSL PostgreSQL/Redis：从 ASCII 临时目录 `/mnt/d/tmp/rd-verify-ops` 执行，PostgreSQL/Redis compose 启动、Alembic 迁移和全量测试通过，结果 `319 passed in 12.02s`，验证后已执行 `docker compose -p rd-verify-ops -f docker-compose.prodlike.yml down -v` 清理。
+- 注意：WSL 全量测试不能设置通用 `RESOURCE_DISCOVERY_DATABASE_URL`，否则默认配置测试会按环境变量读取到 PostgreSQL URL；全量测试只设置 `RESOURCE_DISCOVERY_TEST_DATABASE_URL` 和 `RESOURCE_DISCOVERY_TEST_REDIS_URL`。

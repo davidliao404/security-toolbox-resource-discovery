@@ -85,6 +85,27 @@ class SQLiteTaskQueue:
                 (reason, _utcnow(), item.tenant_id, item.task_id),
             )
 
+    def dead_letter_items(self) -> list[dict[str, str]]:
+        with _connect(self.db_path) as conn:
+            rows = conn.execute(
+                """
+                select tenant_id, task_id, attempts, last_error, updated_at
+                from queue_jobs
+                where state='failed'
+                order by updated_at desc
+                """
+            ).fetchall()
+        return [
+            {
+                "tenant_id": row["tenant_id"],
+                "task_id": row["task_id"],
+                "attempts": str(row["attempts"]),
+                "last_error": row["last_error"],
+                "updated_at": row["updated_at"],
+            }
+            for row in rows
+        ]
+
     def status(self, tenant_id: str, task_id: str) -> TaskQueueStatus:
         with _connect(self.db_path) as conn:
             row = conn.execute(

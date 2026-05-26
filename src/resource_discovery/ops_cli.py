@@ -11,10 +11,13 @@ from typing import Any
 from alembic import command
 from alembic.config import Config
 
+from .client_secrets import ClientSecretRecord
 from .config import GatewaySettings, load_settings
+from .postgres_store import PostgresClientSecretRepository, create_postgres_engine
 from .request_auth import build_signature
 from .scope_guard import TenantScopeProfile
-from .sqlite_store import SQLiteScopeProfileRepository, _connect, initialize_sqlite
+from .sqlite_store import SQLiteAuditRepository, SQLiteScopeProfileRepository, _connect, initialize_sqlite
+from .task_operations import TaskOperationError, cancel_task, list_dead_letters
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -41,6 +44,41 @@ def main(argv: list[str] | None = None) -> int:
     cleanup = subparsers.add_parser("cleanup-retention")
     _settings_args(cleanup)
     cleanup.add_argument("--older-than-days", type=int, default=90)
+    cleanup.add_argument("--tenant-id")
+
+    rotate = subparsers.add_parser("rotate-client-secret")
+    rotate.add_argument("--database-url", required=True)
+    rotate.add_argument("--tenant-id", required=True)
+    rotate.add_argument("--client-id", required=True)
+    rotate.add_argument("--secret-ref", required=True)
+
+    approve = subparsers.add_parser("approve-scope-profile")
+    _settings_args(approve)
+    approve.add_argument("--profile-file", required=True)
+    approve.add_argument("--tenant-id", required=True)
+    approve.add_argument("--profile-id", required=True)
+    approve.add_argument("--approved-by", required=True)
+    approve.add_argument("--ticket-id", required=True)
+
+    cancel = subparsers.add_parser("cancel-task")
+    _settings_args(cancel)
+    cancel.add_argument("--tenant-id", required=True)
+    cancel.add_argument("--task-id", required=True)
+    cancel.add_argument("--actor", required=True)
+
+    dead_letters = subparsers.add_parser("list-dead-letters")
+    _settings_args(dead_letters)
+
+    search_audit = subparsers.add_parser("search-audit")
+    _settings_args(search_audit)
+    search_audit.add_argument("--tenant-id", required=True)
+    search_audit.add_argument("--event-type")
+    search_audit.add_argument("--task-id")
+    search_audit.add_argument("--limit", type=int, default=100)
+
+    live_fofa = subparsers.add_parser("live-fofa-regression")
+    live_fofa.add_argument("--output-dir", default="artifacts/live-validation")
+    live_fofa.add_argument("--result-limit", type=int, default=10)
 
     args = parser.parse_args(argv)
     if args.command == "verify-config":
@@ -53,6 +91,18 @@ def main(argv: list[str] | None = None) -> int:
         return _smoke_test(args)
     if args.command == "cleanup-retention":
         return _cleanup_retention(args)
+    if args.command == "rotate-client-secret":
+        return _rotate_client_secret(args)
+    if args.command == "approve-scope-profile":
+        return _approve_scope_profile(args)
+    if args.command == "cancel-task":
+        return _cancel_task_command(args)
+    if args.command == "list-dead-letters":
+        return _list_dead_letters_command(args)
+    if args.command == "search-audit":
+        return _search_audit(args)
+    if args.command == "live-fofa-regression":
+        return _live_fofa_regression(args)
     raise AssertionError(args.command)
 
 
@@ -131,8 +181,17 @@ def _seed_scope_profile(args: argparse.Namespace) -> int:
 
 def _cleanup_retention(args: argparse.Namespace) -> int:
     settings = _settings_from_args(args)
+    if settings.storage_backend == "postgres":
+        if not args.tenant_id:
+            raise ValueError("--tenant-id is required for postgres cleanup-retention")
+        engine = create_postgres_engine(settings.database_url)
+        from .postgres_store import PostgresRetentionRepository
+
+        deleted = PostgresRetentionRepository(engine).cleanup_expired_rows(args.tenant_id, datetime.now(timezone.utc))
+        print(json.dumps({"status": "ok", "tenant_id": args.tenant_id, "deleted": deleted}, ensure_ascii=False))
+        return 0
     if settings.storage_backend != "sqlite":
-        raise ValueError("cleanup-retention currently requires sqlite settings in this local CLI path")
+        raise ValueError("cleanup-retention currently supports sqlite and postgres settings")
     initialize_sqlite(settings.sqlite_path)
     cutoff = (datetime.now(timezone.utc) - timedelta(days=args.older_than_days)).isoformat()
     deleted: dict[str, int] = {}
@@ -153,6 +212,144 @@ def _cleanup_retention(args: argparse.Namespace) -> int:
             cursor = conn.execute(f"delete from {table} where {column} < ?", (cutoff,))
             deleted[table] = cursor.rowcount
     print(json.dumps({"status": "ok", "deleted": deleted}, ensure_ascii=False))
+    return 0
+
+
+def _search_audit(args: argparse.Namespace) -> int:
+    settings = _settings_from_args(args)
+    if settings.storage_backend == "postgres":
+        engine = create_postgres_engine(settings.database_url)
+        from .postgres_store import PostgresAuditRepository
+
+        events = PostgresAuditRepository(engine).search_events(args.tenant_id, args.event_type, args.task_id, args.limit)
+    elif settings.storage_backend == "sqlite":
+        initialize_sqlite(settings.sqlite_path)
+        events = SQLiteAuditRepository(settings.sqlite_path).list_events(args.tenant_id)
+        if args.event_type:
+            events = [event for event in events if event["event_type"] == args.event_type]
+        if args.task_id:
+            events = [event for event in events if event["task_id"] == args.task_id]
+        events = events[: max(1, min(args.limit, 500))]
+    else:
+        raise ValueError(f"Unsupported storage backend for search-audit: {settings.storage_backend}")
+    for event in events:
+        print(json.dumps(event, ensure_ascii=False, default=str))
+    return 0
+
+
+def _live_fofa_regression(args: argparse.Namespace) -> int:
+    from .live_validation import run_live_fofa_regression
+
+    try:
+        summary = run_live_fofa_regression(output_dir=args.output_dir, result_limit=args.result_limit)
+    except ValueError as exc:
+        print(json.dumps({"status": "not_run", "reason": str(exc)}, ensure_ascii=False))
+        return 2
+    print(json.dumps(summary, ensure_ascii=False))
+    return 0
+
+
+def _rotate_client_secret(args: argparse.Namespace) -> int:
+    now = datetime.now(timezone.utc)
+    record = ClientSecretRecord(
+        tenant_id=args.tenant_id,
+        client_id=args.client_id,
+        secret_ref=args.secret_ref,
+        active=True,
+        created_at=now,
+        updated_at=now,
+    )
+    engine = create_postgres_engine(args.database_url)
+    PostgresClientSecretRepository(engine).upsert(record)
+    print(
+        json.dumps(
+            {
+                "status": "ok",
+                "tenant_id": record.tenant_id,
+                "client_id": record.client_id,
+                "secret_ref": record.secret_ref,
+                "active": record.active,
+            },
+            ensure_ascii=False,
+        )
+    )
+    return 0
+
+
+def _approve_scope_profile(args: argparse.Namespace) -> int:
+    settings = _settings_from_args(args)
+    payload = json.loads(Path(args.profile_file).read_text(encoding="utf-8"))
+    if payload.get("tenant_id") != args.tenant_id:
+        raise ValueError(f"Scope profile tenant does not match requested tenant: {args.tenant_id}")
+    if payload.get("profile_id") != args.profile_id:
+        raise ValueError(f"Scope profile ID does not match requested profile: {args.profile_id}")
+
+    payload["status"] = "active"
+    payload["approval"] = {
+        "approved_by": args.approved_by,
+        "approved_at": datetime.now(timezone.utc).isoformat(),
+        "ticket_id": args.ticket_id,
+    }
+    profile = TenantScopeProfile(**payload)
+    details = {
+        "profile_id": args.profile_id,
+        "approved_by": args.approved_by,
+        "ticket_id": args.ticket_id,
+    }
+
+    if settings.storage_backend == "postgres":
+        engine = create_postgres_engine(settings.database_url)
+        from .postgres_store import PostgresAuditRepository, PostgresScopeProfileRepository
+
+        PostgresScopeProfileRepository(engine).save(profile)
+        PostgresAuditRepository(engine).record_event(args.tenant_id, "", "scope_profile_approved", details)
+    elif settings.storage_backend == "sqlite":
+        initialize_sqlite(settings.sqlite_path)
+        SQLiteScopeProfileRepository(settings.sqlite_path).save(profile)
+        SQLiteAuditRepository(settings.sqlite_path).record_event(args.tenant_id, "", "scope_profile_approved", details)
+    else:
+        raise ValueError(f"Unsupported storage backend for approve-scope-profile: {settings.storage_backend}")
+
+    print(
+        json.dumps(
+            {
+                "status": "ok",
+                "tenant_id": args.tenant_id,
+                "profile_id": args.profile_id,
+                "approved_by": args.approved_by,
+                "ticket_id": args.ticket_id,
+            },
+            ensure_ascii=False,
+        )
+    )
+    return 0
+
+
+def _cancel_task_command(args: argparse.Namespace) -> int:
+    settings = _settings_from_args(args)
+    if settings.storage_backend != "sqlite":
+        raise ValueError("cancel-task currently requires sqlite settings in this local CLI path")
+    initialize_sqlite(settings.sqlite_path)
+    from .sqlite_store import SQLiteTaskRepository
+
+    try:
+        result = cancel_task(SQLiteTaskRepository(settings.sqlite_path), args.tenant_id, args.task_id, args.actor)
+    except TaskOperationError as exc:
+        print(json.dumps({"status": "rejected", "errors": [{"code": exc.code, "message": str(exc), "recoverable": False}]}, ensure_ascii=False))
+        return 1
+    print(json.dumps(result, ensure_ascii=False))
+    return 0
+
+
+def _list_dead_letters_command(args: argparse.Namespace) -> int:
+    settings = _settings_from_args(args)
+    if settings.queue_backend != "sqlite":
+        raise ValueError("list-dead-letters currently requires sqlite queue settings in this local CLI path")
+    initialize_sqlite(settings.sqlite_path)
+    from .queue_backends import SQLiteTaskQueue
+
+    for item in list_dead_letters(SQLiteTaskQueue(settings.sqlite_path)):
+        print(json.dumps(item, ensure_ascii=False))
     return 0
 
 

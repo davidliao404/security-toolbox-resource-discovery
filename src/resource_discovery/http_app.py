@@ -17,6 +17,7 @@ from .gateway_api import DiscoveryGatewayApi
 from .logging_config import configure_logging
 from .metrics import GatewayMetrics
 from .queue_backends import SQLiteTaskQueue
+from .quota import QuotaExceeded, TenantQuotaPolicy, check_task_quota
 from .request_auth import AuthError, InMemoryNonceStore, NonceStore
 from .scope_guard import TenantScopeProfile
 from .source_client import FixtureSourceClient, SourceClient
@@ -72,6 +73,8 @@ def create_app(
     metrics_enabled: bool = False,
     log_format: str = "text",
     log_level: str = "INFO",
+    quota_policy: TenantQuotaPolicy | None = None,
+    quota_usage: dict[str, int] | None = None,
 ) -> FastAPI:
     if task_repository is None or result_repository is None or queue is None:
         initialize_sqlite(sqlite_path)
@@ -98,6 +101,7 @@ def create_app(
     app.state.storage_backend = storage_backend
     app.state.queue_backend = queue_backend
     app.state.metrics = metrics
+    app.state.quota_policy = quota_policy
 
     @app.middleware("http")
     async def request_context(request: Request, call_next):
@@ -182,7 +186,39 @@ def create_app(
         auth = await require_auth(request)
         if isinstance(auth, JSONResponse):
             return auth
-        return gateway_api.create_task(await request.json())
+        payload = await request.json()
+        if quota_policy is not None:
+            usage = quota_usage or {}
+            try:
+                check_task_quota(
+                    tenant_id=auth["tenant_id"],
+                    policy=quota_policy,
+                    current_daily_tasks=int(usage.get("current_daily_tasks", 0)),
+                    current_daily_provider_queries=int(usage.get("current_daily_provider_queries", 0)),
+                    current_running_tasks=int(usage.get("current_running_tasks", 0)),
+                    planned_provider_queries=max(1, len(payload.get("engines") or ["fofa"])),
+                    now=clock(),
+                )
+            except QuotaExceeded as exc:
+                metrics.quota_rejections.labels(exc.code).inc()
+                return JSONResponse(
+                    status_code=429,
+                    content={
+                        "status": "rejected",
+                        "errors": [
+                            {
+                                "code": exc.code,
+                                "message": str(exc),
+                                "recoverable": True,
+                                "details": {},
+                            }
+                        ],
+                    },
+                )
+        result = gateway_api.create_task(payload)
+        if result.get("status") == "queued":
+            metrics.tasks_created.labels(auth["tenant_id"]).inc()
+        return result
 
     @app.get("/api/v1/discovery/tasks/{task_id}")
     async def get_task(task_id: str, request: Request) -> Any:

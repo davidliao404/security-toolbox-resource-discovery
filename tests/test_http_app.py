@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 
 from resource_discovery.config import GatewaySettings
 from resource_discovery.http_app import create_app, create_app_from_settings
+from resource_discovery.quota import TenantQuotaPolicy
 from resource_discovery.request_auth import build_signature
 from resource_discovery.scope_guard import TenantScopeProfile
 
@@ -215,6 +216,33 @@ def test_create_task_returns_structured_rejection_for_scope_validation_error(tmp
     assert response.status_code == 200
     assert response.json()["status"] == "rejected"
     assert response.json()["errors"][0]["code"] == "scope_validation_failed"
+
+
+def test_create_task_returns_429_when_tenant_quota_exceeded(tmp_path):
+    path = "/api/v1/discovery/tasks"
+    body = json.dumps(
+        {
+            "profile_id": "scope_profile_001",
+            "requested_scope": {"root_domains": ["example.com"]},
+            "engines": ["fofa"],
+            "result_limit": 100,
+            "purpose": "toolbox_asset_discovery",
+        },
+        separators=(",", ":"),
+    ).encode("utf-8")
+    app = create_app(
+        sqlite_path=tmp_path / "gateway.sqlite3",
+        client_secrets={"tenant_poc": {"toolbox": "secret"}},
+        now=lambda: datetime(2026, 5, 22, 10, 0, tzinfo=timezone.utc),
+        quota_policy=TenantQuotaPolicy(max_tasks_per_day=0, max_provider_queries_per_day=100, max_concurrent_tasks=2),
+    )
+    client = TestClient(app)
+
+    response = client.post(path, content=body, headers=_headers("secret", "POST", path, body))
+
+    assert response.status_code == 429
+    assert response.json()["status"] == "rejected"
+    assert response.json()["errors"][0]["code"] == "tenant_daily_task_quota_exceeded"
 
 
 def test_create_app_from_settings_uses_configured_secret_file_and_sqlite_nonce(tmp_path):

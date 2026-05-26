@@ -44,3 +44,24 @@ def test_scope_profile_repository_rejects_profile_id_mismatch(tmp_path):
         assert "does not match requested profile" in str(exc)
     else:
         raise AssertionError("Expected mismatched profile ID to be rejected")
+
+
+def test_scope_profile_repository_preserves_approval_metadata(tmp_path):
+    payload = json.loads(open("examples/scope_profile.json", encoding="utf-8").read())
+    payload["approval"] = {
+        "approved_by": "security-admin",
+        "approved_at": "2026-05-25T10:00:00+08:00",
+        "ticket_id": "SEC-2026-0525",
+    }
+    (tmp_path / "tenant_poc.scope_profile_001.json").write_text(
+        json.dumps(payload),
+        encoding="utf-8",
+    )
+
+    profile = FileScopeProfileRepository(tmp_path).load_active("tenant_poc", "scope_profile_001")
+
+    assert profile.approval == {
+        "approved_by": "security-admin",
+        "approved_at": "2026-05-25T10:00:00+08:00",
+        "ticket_id": "SEC-2026-0525",
+    }

@@ -37,6 +37,11 @@ class TaskWorker:
         if item is None:
             return {"processed": False}
         task_payload = self.task_repository.load(item.tenant_id, item.task_id)
+        if _status_value(task_payload["task"].get("status")) == "cancelled":
+            if hasattr(self.queue, "mark_done"):
+                self.queue.mark_done(item)
+            self._record("task_cancelled_before_execution", item.tenant_id, item.task_id, {})
+            return {"processed": True, "task_id": item.task_id, "status": "cancelled"}
         self._mark_status(task_payload, "running")
         self.task_repository.update(task_payload)
         self._record("discovery_task_started", item.tenant_id, item.task_id, {})

@@ -113,14 +113,14 @@ def test_migrate_sets_database_url_and_runs_alembic(monkeypatch, capsys):
     assert json.loads(capsys.readouterr().out) == {"status": "ok", "migration": "head"}
 
 
-def test_seed_and_cleanup_reject_postgres_backend(tmp_path):
+def test_seed_rejects_postgres_backend_and_cleanup_requires_tenant_for_postgres(tmp_path):
     profile_path = tmp_path / "scope.json"
     profile_path.write_text('{"tenant_id": "tenant_a", "profile_id": "scope_1"}', encoding="utf-8")
 
     with pytest.raises(ValueError, match="sqlite"):
         main(["seed-scope-profile", "--storage-backend", "postgres", "--database-url", "postgresql://example", "--profile-json", str(profile_path)])
 
-    with pytest.raises(ValueError, match="sqlite"):
+    with pytest.raises(ValueError, match="tenant-id"):
         main(["cleanup-retention", "--storage-backend", "postgres", "--database-url", "postgresql://example"])
 
 

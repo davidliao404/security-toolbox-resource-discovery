@@ -6,8 +6,19 @@ from typing import Any
 from sqlalchemy import Engine, create_engine, delete, insert, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
-from .db import audit_events, request_nonces, scope_profiles, task_results, tasks
+from .client_secrets import ClientSecretRecord
+from .db import (
+    audit_events,
+    client_secrets as client_secrets_table,
+    rate_limit_buckets,
+    request_nonces,
+    retention_policies,
+    scope_profiles,
+    task_results,
+    tasks,
+)
 from .repositories import _parse_cursor
+from .request_auth import AuthError
 from .scope_guard import TenantScopeProfile
 
 
@@ -222,3 +233,175 @@ class PostgresAuditRepository:
         with self.engine.begin() as conn:
             rows = conn.execute(stmt).mappings().all()
         return [dict(row) for row in rows]
+
+    def search_events(
+        self,
+        tenant_id: str,
+        event_type: str | None = None,
+        task_id: str | None = None,
+        limit: int = 100,
+    ) -> list[dict[str, Any]]:
+        conditions = [audit_events.c.tenant_id == tenant_id]
+        if event_type:
+            conditions.append(audit_events.c.event_type == event_type)
+        if task_id:
+            conditions.append(audit_events.c.task_id == task_id)
+        stmt = (
+            select(
+                audit_events.c.tenant_id,
+                audit_events.c.task_id,
+                audit_events.c.event_type,
+                audit_events.c.details,
+                audit_events.c.created_at,
+            )
+            .where(*conditions)
+            .order_by(audit_events.c.id.desc())
+            .limit(max(1, min(limit, 500)))
+        )
+        with self.engine.begin() as conn:
+            rows = conn.execute(stmt).mappings().all()
+        return [dict(row) for row in rows]
+
+
+class PostgresClientSecretRepository:
+    def __init__(self, engine: Engine) -> None:
+        self.engine = engine
+
+    def upsert(self, record: ClientSecretRecord) -> None:
+        stmt = pg_insert(client_secrets_table).values(
+            tenant_id=record.tenant_id,
+            client_id=record.client_id,
+            secret_ref=record.secret_ref,
+            active=record.active,
+            created_at=record.created_at,
+            updated_at=record.updated_at,
+        )
+        stmt = stmt.on_conflict_do_update(
+            index_elements=[client_secrets_table.c.tenant_id, client_secrets_table.c.client_id],
+            set_={
+                "secret_ref": stmt.excluded.secret_ref,
+                "active": stmt.excluded.active,
+                "updated_at": stmt.excluded.updated_at,
+            },
+        )
+        with self.engine.begin() as conn:
+            conn.execute(stmt)
+
+    def load_active(self, tenant_id: str, client_id: str) -> ClientSecretRecord:
+        stmt = select(
+            client_secrets_table.c.tenant_id,
+            client_secrets_table.c.client_id,
+            client_secrets_table.c.secret_ref,
+            client_secrets_table.c.active,
+            client_secrets_table.c.created_at,
+            client_secrets_table.c.updated_at,
+        ).where(
+            client_secrets_table.c.tenant_id == tenant_id,
+            client_secrets_table.c.client_id == client_id,
+            client_secrets_table.c.active.is_(True),
+        )
+        with self.engine.begin() as conn:
+            row = conn.execute(stmt).first()
+        if row is None:
+            raise AuthError("Unknown client credentials", code="unknown_client")
+        return ClientSecretRecord(
+            tenant_id=row.tenant_id,
+            client_id=row.client_id,
+            secret_ref=row.secret_ref,
+            active=row.active,
+            created_at=row.created_at,
+            updated_at=row.updated_at,
+        )
+
+
+class PostgresRateLimitBucketRepository:
+    def __init__(self, engine: Engine) -> None:
+        self.engine = engine
+
+    def get_used(self, tenant_id: str, bucket_name: str, window_start: datetime) -> int:
+        stmt = select(rate_limit_buckets.c.used).where(
+            rate_limit_buckets.c.tenant_id == tenant_id,
+            rate_limit_buckets.c.bucket_name == bucket_name,
+            rate_limit_buckets.c.window_start == window_start,
+        )
+        with self.engine.begin() as conn:
+            row = conn.execute(stmt).first()
+        return int(row.used) if row is not None else 0
+
+    def increment(self, tenant_id: str, bucket_name: str, window_start: datetime, amount: int, limit_value: int) -> int:
+        stmt = pg_insert(rate_limit_buckets).values(
+            tenant_id=tenant_id,
+            bucket_name=bucket_name,
+            window_start=window_start,
+            used=amount,
+            limit_value=limit_value,
+            updated_at=_utcnow(),
+        )
+        stmt = stmt.on_conflict_do_update(
+            constraint="uq_rate_limit_bucket",
+            set_={
+                "used": rate_limit_buckets.c.used + amount,
+                "limit_value": limit_value,
+                "updated_at": stmt.excluded.updated_at,
+            },
+        ).returning(rate_limit_buckets.c.used)
+        with self.engine.begin() as conn:
+            return int(conn.execute(stmt).scalar_one())
+
+
+class PostgresRetentionRepository:
+    DEFAULT_POLICY = {"task_days": 180, "result_days": 90, "audit_days": 365, "nonce_days": 1}
+
+    def __init__(self, engine: Engine) -> None:
+        self.engine = engine
+
+    def load_policy(self, tenant_id: str) -> dict[str, int]:
+        stmt = select(
+            retention_policies.c.task_days,
+            retention_policies.c.result_days,
+            retention_policies.c.audit_days,
+            retention_policies.c.nonce_days,
+        ).where(retention_policies.c.tenant_id == tenant_id)
+        with self.engine.begin() as conn:
+            row = conn.execute(stmt).first()
+        if row is None:
+            return dict(self.DEFAULT_POLICY)
+        return {
+            "task_days": int(row.task_days),
+            "result_days": int(row.result_days),
+            "audit_days": int(row.audit_days),
+            "nonce_days": int(row.nonce_days),
+        }
+
+    def cleanup_expired_rows(self, tenant_id: str, now: datetime) -> dict[str, int]:
+        policy = self.load_policy(tenant_id)
+        result_cutoff = now - timedelta(days=policy["result_days"])
+        task_cutoff = now - timedelta(days=policy["task_days"])
+        audit_cutoff = now - timedelta(days=policy["audit_days"])
+        nonce_cutoff = now - timedelta(days=policy["nonce_days"])
+        with self.engine.begin() as conn:
+            deleted_results = conn.execute(
+                delete(task_results).where(
+                    task_results.c.tenant_id == tenant_id,
+                    task_results.c.created_at < result_cutoff,
+                )
+            ).rowcount
+            deleted_tasks = conn.execute(
+                delete(tasks).where(
+                    tasks.c.tenant_id == tenant_id,
+                    tasks.c.updated_at < task_cutoff,
+                )
+            ).rowcount
+            deleted_audit = conn.execute(
+                delete(audit_events).where(
+                    audit_events.c.tenant_id == tenant_id,
+                    audit_events.c.created_at < audit_cutoff,
+                )
+            ).rowcount
+            deleted_nonces = conn.execute(delete(request_nonces).where(request_nonces.c.expires_at < nonce_cutoff)).rowcount
+        return {
+            "results": int(deleted_results or 0),
+            "tasks": int(deleted_tasks or 0),
+            "audit_events": int(deleted_audit or 0),
+            "request_nonces": int(deleted_nonces or 0),
+        }

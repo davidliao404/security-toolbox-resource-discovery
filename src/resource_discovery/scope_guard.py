@@ -23,6 +23,7 @@ class TenantScopeProfile:
     limits: dict[str, int] = field(default_factory=dict)
     created_by: str | None = None
     authorization_note: str | None = None
+    approval: dict[str, str] = field(default_factory=dict)
     status: str = "active"
 
     def to_toolbox_summary(self) -> dict[str, Any]:

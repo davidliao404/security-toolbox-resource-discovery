@@ -69,6 +69,45 @@ def run_live_validation(
     return build_summary(payload, snapshot_path=snapshot_path.as_posix())
 
 
+def run_live_fofa_regression(
+    *,
+    env: Mapping[str, str | None] | None = None,
+    output_dir: str | Path = "artifacts/live-validation",
+    result_limit: int = 10,
+) -> dict:
+    source_env = env or os.environ
+    if (source_env.get("RESOURCE_DISCOVERY_LIVE_FOFA") or "").strip() != "1":
+        raise ValueError("RESOURCE_DISCOVERY_LIVE_FOFA is required")
+    email = (source_env.get("FOFA_EMAIL") or "").strip()
+    key = (source_env.get("FOFA_KEY") or "").strip()
+    authorized_domain = (source_env.get("RESOURCE_DISCOVERY_LIVE_AUTHORIZED_DOMAIN") or "").strip()
+    if not email:
+        raise ValueError("FOFA_EMAIL is required")
+    if not key:
+        raise ValueError("FOFA_KEY is required")
+    if not authorized_domain:
+        raise ValueError("RESOURCE_DISCOVERY_LIVE_AUTHORIZED_DOMAIN is required")
+    summary = run_live_validation(
+        authorized_domain,
+        output_dir=output_dir,
+        env={
+            "FOFA_API_KEY": key,
+            "FOFA_API_EMAIL": email,
+            "FOFA_BASE_URL": source_env.get("FOFA_BASE_URL") or "https://fofa.info/api/v1/search/all",
+        },
+        page_limit=1,
+        result_limit=result_limit,
+    )
+    return {
+        "status": summary.get("status", "unknown"),
+        "authorized_domain": authorized_domain,
+        "asset_count": summary.get("asset_count", 0),
+        "service_count": summary.get("service_count", 0),
+        "freshness_counts": summary.get("freshness_counts", {}),
+        "snapshot_path": summary.get("snapshot_path", ""),
+    }
+
+
 def build_summary(payload: dict, *, snapshot_path: str) -> dict:
     freshness_counts: dict[str, int] = {}
     for service in payload.get("services", []):

@@ -5,10 +5,13 @@ from types import SimpleNamespace
 import pytest
 from sqlalchemy import create_engine, inspect
 
+from resource_discovery.client_secrets import ClientSecretRecord
 from resource_discovery.db import metadata
 from resource_discovery.postgres_store import (
     PostgresAuditRepository,
+    PostgresClientSecretRepository,
     PostgresNonceRepository,
+    PostgresRateLimitBucketRepository,
     PostgresResultRepository,
     PostgresScopeProfileRepository,
     PostgresTaskRepository,
@@ -51,6 +54,9 @@ class FakeScalarResult:
         self.value = value
 
     def scalar_one_or_none(self):
+        return self.value
+
+    def scalar_one(self):
         return self.value
 
 
@@ -237,6 +243,15 @@ def test_postgres_audit_repository_records_and_lists_events():
     assert repo.list_events("tenant_a")[0]["event_type"] == "task_checked"
 
 
+def test_postgres_rate_limit_bucket_repository_reads_and_increments():
+    window_start = datetime(2026, 5, 25, tzinfo=timezone.utc)
+    engine = FakeEngine([FakeRowsResult(first=SimpleNamespace(used=2)), FakeScalarResult(5)])
+    repo = PostgresRateLimitBucketRepository(engine)
+
+    assert repo.get_used("tenant_a", "tasks:day", window_start) == 2
+    assert repo.increment("tenant_a", "tasks:day", window_start, amount=3, limit_value=10) == 5
+
+
 @pytest.fixture()
 def database_url():
     url = os.getenv("RESOURCE_DISCOVERY_TEST_DATABASE_URL")
@@ -262,6 +277,8 @@ def test_postgres_repositories_round_trip_task_results_scope_nonce_and_audit(eng
     scope_repo = PostgresScopeProfileRepository(engine)
     nonce_repo = PostgresNonceRepository(engine, window_seconds=300)
     audit_repo = PostgresAuditRepository(engine)
+    secret_repo = PostgresClientSecretRepository(engine)
+    bucket_repo = PostgresRateLimitBucketRepository(engine)
 
     profile = TenantScopeProfile(
         tenant_id="tenant_a",
@@ -294,3 +311,22 @@ def test_postgres_repositories_round_trip_task_results_scope_nonce_and_audit(eng
 
     audit_repo.record_event("tenant_a", "task_1", "task_checked", {"ok": True})
     assert audit_repo.list_events("tenant_a")[0]["event_type"] == "task_checked"
+
+    now = datetime.now(timezone.utc)
+    secret_repo.upsert(
+        ClientSecretRecord(
+            tenant_id="tenant_a",
+            client_id="toolbox",
+            secret_ref="vault://tenant_a/toolbox/current",
+            active=True,
+            created_at=now,
+            updated_at=now,
+        )
+    )
+    assert secret_repo.load_active("tenant_a", "toolbox").secret_ref == "vault://tenant_a/toolbox/current"
+
+    window_start = datetime(2026, 5, 25, tzinfo=timezone.utc)
+    assert bucket_repo.get_used("tenant_a", "tasks:day", window_start) == 0
+    assert bucket_repo.increment("tenant_a", "tasks:day", window_start, amount=1, limit_value=10) == 1
+    assert bucket_repo.increment("tenant_a", "tasks:day", window_start, amount=2, limit_value=10) == 3
+    assert bucket_repo.get_used("tenant_a", "tasks:day", window_start) == 3

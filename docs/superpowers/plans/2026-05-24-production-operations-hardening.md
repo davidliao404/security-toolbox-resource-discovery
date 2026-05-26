@@ -1,507 +1,251 @@
-# Production Operations Hardening Implementation Plan
+# 生产运维硬化实施计划
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **给 agentic worker 的要求：** 必须使用 `superpowers:subagent-driven-development`（推荐）或 `superpowers:executing-plans` 按任务逐项实施。步骤使用 checkbox（`- [ ]`）跟踪。
 
-**Goal:** Build the remaining production operations controls for the resource discovery gateway after the 2026-05-24 quality baseline.
+**目标：** 在 2026-05-24 质量基线之后，补齐资源发现网关第一版生产运维控制能力。
 
-**Architecture:** Keep the current FastAPI gateway, repository interfaces, PostgreSQL tables, Redis queue, and ops CLI boundaries. Add small focused modules for secret resolution, quota accounting, task operations, and audit retention so production behavior can be tested without changing the toolbox API contract.
+**架构：** 保持现有 FastAPI 网关、repository 接口、PostgreSQL 表、Redis 队列和 ops CLI 边界。新增小而清晰的模块承载静态客户端密钥、范围审批、配额、任务操作、审计检索、留存清理和受控真实 FOFA 回归。
 
-**Tech Stack:** Python 3.12, FastAPI, SQLAlchemy Core, PostgreSQL, Redis, pytest, coverage, Alembic, Docker Compose.
+**技术栈：** Python 3.12、FastAPI、SQLAlchemy Core、PostgreSQL、Redis、pytest、coverage、Alembic、Docker Compose。
 
 ---
 
-## File Structure
+## 文件结构
 
-- `src/resource_discovery/auth_http.py`: keep public authentication entrypoint; wire in database-backed secret resolver.
-- `src/resource_discovery/client_secrets.py`: create database-backed client secret resolver and rotation service.
-- `src/resource_discovery/postgres_store.py`: add repositories for client secrets, rate-limit buckets, task operations, and retention policies.
-- `src/resource_discovery/quota.py`: create tenant quota and provider rate-limit decision logic.
-- `src/resource_discovery/task_operations.py`: create cancellation and dead-letter operation helpers.
-- `src/resource_discovery/ops_cli.py`: expose admin commands for secret rotation, scope approval, quota inspection, task cancellation, dead-letter listing, audit search, and retention cleanup.
-- `src/resource_discovery/http_app.py`: enforce quota before task creation and report structured quota errors.
-- `src/resource_discovery/worker.py`: honor cancelled tasks before execution and emit quota, retry, and dead-letter audit events.
-- `tests/test_client_secrets.py`: unit and integration coverage for resolver and rotation.
-- `tests/test_quota.py`: quota and provider rate-limit accounting tests.
-- `tests/test_task_operations.py`: cancellation and dead-letter behavior tests.
-- `tests/test_ops_cli_production_ops.py`: ops CLI command tests.
-- `tests/test_production_audit_retention.py`: audit search and tenant retention policy tests.
-- `docs/resource-discovery/production-readiness-checklist.md`: mark completed controls only after tests pass.
+- `src/resource_discovery/client_secrets.py`：静态客户端签名密钥记录、解析和轮换服务。
+- `src/resource_discovery/postgres_store.py`：补充客户端密钥、配额 bucket、审计检索和留存策略 repository。
+- `src/resource_discovery/quota.py`：租户任务配额和供应商查询配额判断逻辑。
+- `src/resource_discovery/task_operations.py`：任务取消和死信队列运维辅助函数。
+- `src/resource_discovery/ops_cli.py`：范围审批、密钥轮换、任务取消、死信查看、审计检索、留存清理和真实 FOFA 回归命令。
+- `src/resource_discovery/http_app.py`：创建任务前执行配额校验，并返回结构化 429 错误。
+- `src/resource_discovery/worker.py`：执行前识别已取消任务，补充任务完成、供应商错误和死信指标。
+- `src/resource_discovery/metrics.py`：补充生产运维指标。
+- `src/resource_discovery/live_validation.py`：受环境变量保护的真实 FOFA 回归入口。
+- `tests/test_client_secrets.py`：客户端静态密钥和轮换测试。
+- `tests/test_quota.py`：配额判断测试。
+- `tests/test_task_operations.py`：任务取消和死信查看测试。
+- `tests/test_ops_cli_production_ops.py`：生产运维 CLI 测试。
+- `tests/test_production_audit_retention.py`：审计检索和留存清理测试。
+- `tests/test_live_fofa_regression.py`：真实 FOFA 回归环境门禁和脱敏测试。
+- `docs/resource-discovery/production-readiness-checklist.md`：只在测试通过后更新完成状态。
 
-## Task 1: Database-Backed Client Secret Resolution and Rotation
+## 任务 1：客户端静态密钥管理与轮换
 
-**Files:**
-- Create: `src/resource_discovery/client_secrets.py`
-- Modify: `src/resource_discovery/auth_http.py`
-- Modify: `src/resource_discovery/postgres_store.py`
-- Modify: `src/resource_discovery/ops_cli.py`
-- Test: `tests/test_client_secrets.py`
-- Test: `tests/test_ops_cli_production_ops.py`
+**文件：**
+- 创建：`src/resource_discovery/client_secrets.py`
+- 修改：`src/resource_discovery/postgres_store.py`
+- 修改：`src/resource_discovery/ops_cli.py`
+- 测试：`tests/test_client_secrets.py`
+- 测试：`tests/test_ops_cli_production_ops.py`
 
-- [ ] **Step 1: Write resolver tests**
+- [x] **步骤 1：先写失败测试**
 
-Add this test file:
+覆盖行为：
 
-```python
-from datetime import datetime, timezone
+- `ClientSecretRotationService` 只解析 active 的 `tenant_id + client_id` 记录。
+- `StaticSecretMaterialResolver` 使用静态 `secret_ref -> secret` 映射，不依赖 KMS/Vault。
+- `PostgresClientSecretRepository` 只读取 active 记录。
+- `rotate-client-secret` 只保存和打印 `secret_ref`，不接收明文 secret。
 
-import pytest
+- [x] **步骤 2：运行测试确认失败**
 
-from resource_discovery.client_secrets import ClientSecretRecord, ClientSecretRotationService, StaticSecretMaterialResolver
-from resource_discovery.request_auth import AuthError
+运行：`.\.venv\Scripts\python.exe -m pytest tests/test_client_secrets.py tests/test_ops_cli_production_ops.py -q`
 
+预期：因为模块和命令尚不存在而失败。
 
-class MemoryClientSecretRepository:
-    def __init__(self):
-        self.records = {}
-        self.audit = []
+- [x] **步骤 3：实现静态密钥模块**
 
-    def upsert(self, record):
-        self.records[(record.tenant_id, record.client_id)] = record
+实现 `ClientSecretRecord`、`StaticSecretMaterialResolver` 和 `ClientSecretRotationService`。
 
-    def load_active(self, tenant_id, client_id):
-        record = self.records.get((tenant_id, client_id))
-        if record is None or not record.active:
-            raise AuthError("Unknown client credentials", code="unknown_client")
-        return record
+- [x] **步骤 4：实现 PostgreSQL 仓储**
 
-    def deactivate(self, tenant_id, client_id):
-        record = self.records[(tenant_id, client_id)]
-        self.records[(tenant_id, client_id)] = ClientSecretRecord(
-            tenant_id=record.tenant_id,
-            client_id=record.client_id,
-            secret_ref=record.secret_ref,
-            active=False,
-            created_at=record.created_at,
-            updated_at=datetime.now(timezone.utc),
-        )
+使用既有 `client_secrets` 表按 `(tenant_id, client_id)` upsert `secret_ref`，并只返回 active 记录。
 
+- [x] **步骤 5：接入运维 CLI**
 
-def test_rotation_service_resolves_active_secret_ref():
-    repo = MemoryClientSecretRepository()
-    material = StaticSecretMaterialResolver({"vault://tenant_a/toolbox/current": "secret-v2"})
-    service = ClientSecretRotationService(repo, material)
+新增 `rotate-client-secret --database-url --tenant-id --client-id --secret-ref`。
 
-    service.activate("tenant_a", "toolbox", "vault://tenant_a/toolbox/current")
+- [x] **步骤 6：运行聚焦测试**
 
-    assert service.resolve("tenant_a", "toolbox") == "secret-v2"
+运行：`.\.venv\Scripts\python.exe -m pytest tests/test_client_secrets.py tests/test_ops_cli_production_ops.py tests/test_postgres_store.py -q`
 
+当前结果：`19 passed, 1 skipped`。
 
-def test_rotation_service_rejects_inactive_secret():
-    repo = MemoryClientSecretRepository()
-    material = StaticSecretMaterialResolver({"vault://tenant_a/toolbox/current": "secret-v2"})
-    service = ClientSecretRotationService(repo, material)
+## 任务 2：范围配置管理、审批和审计
 
-    service.activate("tenant_a", "toolbox", "vault://tenant_a/toolbox/current")
-    repo.deactivate("tenant_a", "toolbox")
+**文件：**
+- 修改：`src/resource_discovery/scope_guard.py`
+- 修改：`src/resource_discovery/postgres_store.py`
+- 修改：`src/resource_discovery/ops_cli.py`
+- 测试：`tests/test_scope_profile_repository.py`
+- 测试：`tests/test_ops_cli_production_ops.py`
 
-    with pytest.raises(AuthError) as exc:
-        service.resolve("tenant_a", "toolbox")
-    assert exc.value.code == "unknown_client"
-```
+- [x] **步骤 1：先写失败测试**
 
-- [ ] **Step 2: Run resolver tests and verify failure**
+覆盖行为：
 
-Run: `.\.venv\Scripts\python.exe -m pytest tests/test_client_secrets.py -q`
+- scope profile 可携带 `approval` 字段。
+- `approve-scope-profile` 会设置 `status=active`，写入 `approved_by`、`approved_at`、`ticket_id`。
+- 审批命令写入 `scope_profile_approved` 审计事件。
+- 审计详情不得包含完整授权范围。
 
-Expected: fails because `resource_discovery.client_secrets` does not exist.
+- [x] **步骤 2：运行测试确认失败**
 
-- [ ] **Step 3: Implement client secret module**
+运行：`.\.venv\Scripts\python.exe -m pytest tests/test_scope_profile_repository.py tests/test_ops_cli_production_ops.py -q`
 
-Create `src/resource_discovery/client_secrets.py` with:
+- [x] **步骤 3：实现 scope profile 审批字段和 CLI**
 
-```python
-from __future__ import annotations
+允许 `TenantScopeProfile` 保留 `approval` 字段；新增 `approve-scope-profile` 命令。
 
-from dataclasses import dataclass
-from datetime import datetime, timezone
-from typing import Protocol
+- [x] **步骤 4：运行聚焦测试**
 
-from .request_auth import AuthError
+运行：`.\.venv\Scripts\python.exe -m pytest tests/test_scope_profile_repository.py tests/test_ops_cli_production_ops.py -q`
 
+## 任务 3：租户配额和供应商限速
 
-@dataclass(frozen=True)
-class ClientSecretRecord:
-    tenant_id: str
-    client_id: str
-    secret_ref: str
-    active: bool
-    created_at: datetime
-    updated_at: datetime
+**文件：**
+- 创建：`src/resource_discovery/quota.py`
+- 修改：`src/resource_discovery/postgres_store.py`
+- 修改：`src/resource_discovery/http_app.py`
+- 测试：`tests/test_quota.py`
+- 测试：`tests/test_http_app.py`
 
+- [x] **步骤 1：先写失败测试**
 
-class ClientSecretRepository(Protocol):
-    def upsert(self, record: ClientSecretRecord) -> None:
-        """Create or replace the active secret reference."""
+覆盖行为：
 
-    def load_active(self, tenant_id: str, client_id: str) -> ClientSecretRecord:
-        """Load the active secret reference for a tenant/client pair."""
+- 未超过日任务数、供应商查询数和并发数时允许创建任务。
+- 超过租户日任务数返回 `tenant_daily_task_quota_exceeded`。
+- 超过供应商查询日配额返回 `provider_daily_query_quota_exceeded`。
+- 超过并发任务数返回 `tenant_concurrent_task_quota_exceeded`。
+- FastAPI 创建任务超配额时返回 HTTP 429 和结构化错误。
 
+- [x] **步骤 2：运行测试确认失败**
 
-class SecretMaterialResolver(Protocol):
-    def resolve_material(self, secret_ref: str) -> str:
-        """Resolve the secret material behind a reference."""
+运行：`.\.venv\Scripts\python.exe -m pytest tests/test_quota.py tests/test_http_app.py -q`
 
+- [x] **步骤 3：实现 `quota.py`**
 
-class StaticSecretMaterialResolver:
-    def __init__(self, material_by_ref: dict[str, str]) -> None:
-        self.material_by_ref = material_by_ref
+实现 `TenantQuotaPolicy`、`QuotaDecision`、`QuotaExceeded` 和 `check_task_quota(...)`。
 
-    def resolve_material(self, secret_ref: str) -> str:
-        try:
-            return self.material_by_ref[secret_ref]
-        except KeyError:
-            raise AuthError("Unknown client credentials", code="unknown_client") from None
+- [x] **步骤 4：实现 PostgreSQL bucket 仓储**
 
+基于 `rate_limit_buckets` 表读写日级任务和供应商查询 bucket。
 
-class ClientSecretRotationService:
-    def __init__(self, repository: ClientSecretRepository, material_resolver: SecretMaterialResolver) -> None:
-        self.repository = repository
-        self.material_resolver = material_resolver
+- [x] **步骤 5：接入 FastAPI**
 
-    def activate(self, tenant_id: str, client_id: str, secret_ref: str) -> None:
-        now = datetime.now(timezone.utc)
-        self.repository.upsert(
-            ClientSecretRecord(
-                tenant_id=tenant_id,
-                client_id=client_id,
-                secret_ref=secret_ref,
-                active=True,
-                created_at=now,
-                updated_at=now,
-            )
-        )
+在创建任务前执行可选配额校验；未配置配额仓储时保持现有联调行为。
 
-    def resolve(self, tenant_id: str, client_id: str) -> str:
-        record = self.repository.load_active(tenant_id, client_id)
-        if not record.active:
-            raise AuthError("Unknown client credentials", code="unknown_client")
-        return self.material_resolver.resolve_material(record.secret_ref)
-```
+- [x] **步骤 6：运行聚焦测试**
 
-- [ ] **Step 4: Add PostgreSQL repository**
+运行：`.\.venv\Scripts\python.exe -m pytest tests/test_quota.py tests/test_http_app.py tests/test_postgres_store.py -q`
 
-In `src/resource_discovery/postgres_store.py`, import `client_secrets` from `db.py` and `ClientSecretRecord`. Add `PostgresClientSecretRepository` with `upsert()` using `pg_insert(...).on_conflict_do_update(...)` on `(tenant_id, client_id)` and `load_active()` filtering `active == True`. Raise `AuthError(..., code="unknown_client")` when no row exists.
+## 任务 4：任务取消和死信队列运维
 
-- [ ] **Step 5: Wire admin CLI**
+**文件：**
+- 创建：`src/resource_discovery/task_operations.py`
+- 修改：`src/resource_discovery/worker.py`
+- 修改：`src/resource_discovery/ops_cli.py`
+- 测试：`tests/test_task_operations.py`
+- 测试：`tests/test_worker_retry.py`
+- 测试：`tests/test_redis_queue.py`
 
-In `src/resource_discovery/ops_cli.py`, add `rotate-client-secret` accepting `--tenant-id`, `--client-id`, and `--secret-ref`. The command stores only `secret_ref`; it must not print or accept raw secret material.
+- [x] **步骤 1：先写失败测试**
 
-- [ ] **Step 6: Run focused tests**
+覆盖行为：
 
-Run: `.\.venv\Scripts\python.exe -m pytest tests/test_client_secrets.py tests/test_ops_cli_production_ops.py -q`
+- `queued`、`retrying`、`running` 可取消为 `cancelled`。
+- 终态任务不能取消，并返回结构化不可重试错误。
+- dead letter 列表包含 `tenant_id`、`task_id`、`attempts`、`last_error`、`updated_at`。
+- worker 执行前发现任务已取消时跳过供应商调用。
 
-Expected: all focused tests pass.
+- [x] **步骤 2：运行测试确认失败**
 
-- [ ] **Step 7: Commit**
+运行：`.\.venv\Scripts\python.exe -m pytest tests/test_task_operations.py tests/test_worker_retry.py -q`
 
-```bash
-git add src/resource_discovery/client_secrets.py src/resource_discovery/auth_http.py src/resource_discovery/postgres_store.py src/resource_discovery/ops_cli.py tests/test_client_secrets.py tests/test_ops_cli_production_ops.py
-git commit -m "feat: add production client secret rotation"
-```
+- [x] **步骤 3：实现任务操作模块**
 
-## Task 2: Scope Profile Administration and Approval Records
+实现 `cancel_task(...)` 和 `list_dead_letters(...)`。
 
-**Files:**
-- Modify: `src/resource_discovery/postgres_store.py`
-- Modify: `src/resource_discovery/ops_cli.py`
-- Test: `tests/test_scope_profile_repository.py`
-- Test: `tests/test_ops_cli_production_ops.py`
+- [x] **步骤 4：接入 worker 和 ops CLI**
 
-- [ ] **Step 1: Add approval tests**
+新增 `cancel-task` 和 `list-dead-letters` 命令，worker 执行前识别取消状态。
 
-Add tests that seed a scope profile payload with:
+- [x] **步骤 5：运行聚焦测试**
 
-```python
-payload["approval"] = {
-    "approved_by": "security-admin",
-    "approved_at": "2026-05-24T10:00:00+08:00",
-    "ticket_id": "SEC-2026-0524",
-}
-```
+运行：`.\.venv\Scripts\python.exe -m pytest tests/test_task_operations.py tests/test_worker_retry.py tests/test_redis_queue.py tests/test_ops_cli_production_ops.py -q`
 
-Assert `load_active("tenant_poc", "scope_profile_001")` preserves the `approval` field in the profile payload returned to repositories and that inactive profiles are still rejected.
+## 任务 5：审计检索、指标和留存清理
 
-- [ ] **Step 2: Run approval tests and verify failure**
+**文件：**
+- 修改：`src/resource_discovery/postgres_store.py`
+- 修改：`src/resource_discovery/metrics.py`
+- 修改：`src/resource_discovery/ops_cli.py`
+- 修改：`src/resource_discovery/http_app.py`
+- 修改：`src/resource_discovery/worker.py`
+- 测试：`tests/test_production_audit_retention.py`
+- 测试：`tests/test_observability.py`
 
-Run: `.\.venv\Scripts\python.exe -m pytest tests/test_scope_profile_repository.py tests/test_ops_cli_production_ops.py -q`
+- [x] **步骤 1：先写失败测试**
 
-Expected: fails until the repository and CLI preserve and require approval metadata.
+覆盖行为：
 
-- [ ] **Step 3: Add CLI command**
+- 审计检索必须按租户隔离，可按 event type 和 task_id 过滤。
+- 留存清理只清理目标租户过期任务、结果、nonce，保留未过期审计。
+- `/metrics` 暴露任务创建、任务完成、供应商错误、死信和配额拒绝计数器。
 
-In `src/resource_discovery/ops_cli.py`, add `approve-scope-profile` accepting `--tenant-id`, `--profile-id`, `--profile-file`, `--approved-by`, and `--ticket-id`. The command loads JSON, sets `status` to `active`, writes the approval object, and calls the existing scope profile repository.
+- [x] **步骤 2：运行测试确认失败**
 
-- [ ] **Step 4: Add audit event**
+运行：`.\.venv\Scripts\python.exe -m pytest tests/test_production_audit_retention.py tests/test_observability.py -q`
 
-When approving a profile, write audit event `scope_profile_approved` with `tenant_id`, `profile_id`, `approved_by`, and `ticket_id`. Do not include the full allowed scope payload in the audit details.
+- [x] **步骤 3：实现 repository 和 CLI**
 
-- [ ] **Step 5: Run focused tests**
+新增 `search_audit_events(...)`、`load_retention_policy(...)`、`cleanup_expired_rows(...)`、`search-audit` 和租户级 `cleanup-retention`。
 
-Run: `.\.venv\Scripts\python.exe -m pytest tests/test_scope_profile_repository.py tests/test_ops_cli_production_ops.py -q`
+- [x] **步骤 4：扩展指标**
 
-Expected: all focused tests pass.
+补充 bounded-label 指标并接入 API/worker。
 
-- [ ] **Step 6: Commit**
+- [x] **步骤 5：运行聚焦测试**
 
-```bash
-git add src/resource_discovery/postgres_store.py src/resource_discovery/ops_cli.py tests/test_scope_profile_repository.py tests/test_ops_cli_production_ops.py
-git commit -m "feat: require approval metadata for scope profiles"
-```
+运行：`.\.venv\Scripts\python.exe -m pytest tests/test_production_audit_retention.py tests/test_observability.py tests/test_ops_cli_production_ops.py -q`
 
-## Task 3: Tenant Quota and Provider Rate Limits
+## 任务 6：受控真实 FOFA 回归
 
-**Files:**
-- Create: `src/resource_discovery/quota.py`
-- Modify: `src/resource_discovery/postgres_store.py`
-- Modify: `src/resource_discovery/http_app.py`
-- Modify: `src/resource_discovery/errors.py`
-- Test: `tests/test_quota.py`
-- Test: `tests/test_http_app.py`
+**文件：**
+- 修改：`src/resource_discovery/live_validation.py`
+- 修改：`src/resource_discovery/ops_cli.py`
+- 创建：`tests/test_live_fofa_regression.py`
+- 修改：`docs/resource-discovery/production-readiness-checklist.md`
 
-- [ ] **Step 1: Write quota tests**
+- [x] **步骤 1：先写失败测试**
 
-Create `tests/test_quota.py` with tests for three cases:
+覆盖行为：
 
-```python
-from datetime import datetime, timezone
+- 未设置 `RESOURCE_DISCOVERY_LIVE_FOFA=1` 时拒绝运行。
+- 缺少 `FOFA_EMAIL`、`FOFA_KEY` 或 `RESOURCE_DISCOVERY_LIVE_AUTHORIZED_DOMAIN` 时拒绝运行。
+- 返回结果和日志摘要不得包含 `FOFA_KEY`。
 
-import pytest
+- [x] **步骤 2：运行测试确认失败**
 
-from resource_discovery.quota import QuotaDecision, QuotaExceeded, TenantQuotaPolicy, check_task_quota
+运行：`.\.venv\Scripts\python.exe -m pytest tests/test_live_fofa_regression.py -q`
 
+- [x] **步骤 3：实现受控 runner 和 CLI**
 
-def test_task_quota_allows_under_daily_limit():
-    decision = check_task_quota(
-        tenant_id="tenant_a",
-        policy=TenantQuotaPolicy(max_tasks_per_day=10, max_provider_queries_per_day=100, max_concurrent_tasks=2),
-        current_daily_tasks=3,
-        current_daily_provider_queries=12,
-        current_running_tasks=1,
-        planned_provider_queries=5,
-        now=datetime.now(timezone.utc),
-    )
-    assert decision == QuotaDecision(allowed=True, code="")
+新增 `run_live_fofa_regression(...)` 和 `live-fofa-regression` 命令。命令只从环境变量读取 FOFA 凭据。
 
+- [x] **步骤 4：运行本地门禁测试**
 
-def test_task_quota_rejects_daily_task_limit():
-    with pytest.raises(QuotaExceeded) as exc:
-        check_task_quota(
-            tenant_id="tenant_a",
-            policy=TenantQuotaPolicy(max_tasks_per_day=3, max_provider_queries_per_day=100, max_concurrent_tasks=2),
-            current_daily_tasks=3,
-            current_daily_provider_queries=12,
-            current_running_tasks=1,
-            planned_provider_queries=5,
-            now=datetime.now(timezone.utc),
-        )
-    assert exc.value.code == "tenant_daily_task_quota_exceeded"
+运行：`.\.venv\Scripts\python.exe -m pytest tests/test_live_fofa_regression.py tests/test_live_validation.py -q`
 
+- [x] **步骤 5：记录真实调用状态**
 
-def test_task_quota_rejects_provider_query_limit():
-    with pytest.raises(QuotaExceeded) as exc:
-        check_task_quota(
-            tenant_id="tenant_a",
-            policy=TenantQuotaPolicy(max_tasks_per_day=10, max_provider_queries_per_day=15, max_concurrent_tasks=2),
-            current_daily_tasks=3,
-            current_daily_provider_queries=12,
-            current_running_tasks=1,
-            planned_provider_queries=5,
-            now=datetime.now(timezone.utc),
-        )
-    assert exc.value.code == "provider_daily_query_quota_exceeded"
-```
+如果本地没有授权域名和真实 FOFA 凭据，在清单中记录 `not run`，不伪造结果。
 
-- [ ] **Step 2: Run quota tests and verify failure**
+## 最终验证
 
-Run: `.\.venv\Scripts\python.exe -m pytest tests/test_quota.py -q`
-
-Expected: fails because `resource_discovery.quota` does not exist.
-
-- [ ] **Step 3: Implement quota module**
-
-Create `src/resource_discovery/quota.py` with dataclasses `TenantQuotaPolicy`, `QuotaDecision`, exception `QuotaExceeded`, and function `check_task_quota(...)`. Return allowed decisions for under-limit requests and raise `QuotaExceeded` with exact codes from the tests.
-
-- [ ] **Step 4: Enforce quota in HTTP task creation**
-
-In `src/resource_discovery/http_app.py`, call the quota repository before `gateway_api.create_task(...)`. On `QuotaExceeded`, return the existing structured error model with HTTP 429 and code from the exception.
-
-- [ ] **Step 5: Add bucket repository**
-
-In `src/resource_discovery/postgres_store.py`, add repository methods backed by `rate_limit_buckets` for reading and incrementing `tenant:{tenant_id}:tasks:day` and `provider:fofa:queries:day` buckets. Use the table unique constraint to make increments atomic.
-
-- [ ] **Step 6: Run focused tests**
-
-Run: `.\.venv\Scripts\python.exe -m pytest tests/test_quota.py tests/test_http_app.py tests/test_postgres_store.py -q`
-
-Expected: all focused tests pass.
-
-- [ ] **Step 7: Commit**
-
-```bash
-git add src/resource_discovery/quota.py src/resource_discovery/postgres_store.py src/resource_discovery/http_app.py src/resource_discovery/errors.py tests/test_quota.py tests/test_http_app.py tests/test_postgres_store.py
-git commit -m "feat: enforce tenant quota and provider limits"
-```
-
-## Task 4: Task Cancellation and Dead-Letter Operations
-
-**Files:**
-- Create: `src/resource_discovery/task_operations.py`
-- Modify: `src/resource_discovery/worker.py`
-- Modify: `src/resource_discovery/redis_queue.py`
-- Modify: `src/resource_discovery/ops_cli.py`
-- Test: `tests/test_task_operations.py`
-- Test: `tests/test_worker_retry.py`
-- Test: `tests/test_redis_queue.py`
-
-- [ ] **Step 1: Write operation tests**
-
-Create `tests/test_task_operations.py` to assert:
-
-- cancelling a `queued`, `retrying`, or `running` task moves status to `cancelled`;
-- cancelling `success`, `partial_success`, `failed`, or `cancelled` returns a structured non-retryable error;
-- listing dead letters returns `tenant_id`, `task_id`, `attempts`, `last_error`, and `updated_at`.
-
-- [ ] **Step 2: Run operation tests and verify failure**
-
-Run: `.\.venv\Scripts\python.exe -m pytest tests/test_task_operations.py -q`
-
-Expected: fails because `resource_discovery.task_operations` does not exist.
-
-- [ ] **Step 3: Implement cancellation helper**
-
-Create `src/resource_discovery/task_operations.py` with `cancel_task(task_repository, tenant_id, task_id, actor)` and `list_dead_letters(queue)`. The cancel function must load the task, check terminal states, update `task["status"] = "cancelled"`, set `task["cancelled_by"]`, set `task["cancelled_at"]`, and persist the task.
-
-- [ ] **Step 4: Make worker honor cancelled tasks**
-
-In `src/resource_discovery/worker.py`, reload the task before provider execution. If status is `cancelled`, skip provider calls, acknowledge queue work, and audit `task_cancelled_before_execution`.
-
-- [ ] **Step 5: Add ops commands**
-
-In `src/resource_discovery/ops_cli.py`, add `cancel-task --tenant-id --task-id --actor` and `list-dead-letters`. The dead-letter command prints JSON lines with one dead-letter object per line.
-
-- [ ] **Step 6: Run focused tests**
-
-Run: `.\.venv\Scripts\python.exe -m pytest tests/test_task_operations.py tests/test_worker_retry.py tests/test_redis_queue.py tests/test_ops_cli_production_ops.py -q`
-
-Expected: all focused tests pass.
-
-- [ ] **Step 7: Commit**
-
-```bash
-git add src/resource_discovery/task_operations.py src/resource_discovery/worker.py src/resource_discovery/redis_queue.py src/resource_discovery/ops_cli.py tests/test_task_operations.py tests/test_worker_retry.py tests/test_redis_queue.py tests/test_ops_cli_production_ops.py
-git commit -m "feat: add task cancellation and dead letter operations"
-```
-
-## Task 5: Audit Search, Metrics, and Retention Operations
-
-**Files:**
-- Modify: `src/resource_discovery/postgres_store.py`
-- Modify: `src/resource_discovery/metrics.py`
-- Modify: `src/resource_discovery/ops_cli.py`
-- Test: `tests/test_production_audit_retention.py`
-- Test: `tests/test_observability.py`
-
-- [ ] **Step 1: Write audit and retention tests**
-
-Create tests that insert audit events for two tenants, query only one tenant with an event type filter, and assert the result excludes other tenants. Add retention tests that delete expired task results and nonces while preserving audit events newer than the tenant policy.
-
-- [ ] **Step 2: Run tests and verify failure**
-
-Run: `.\.venv\Scripts\python.exe -m pytest tests/test_production_audit_retention.py -q`
-
-Expected: fails until repository search and retention methods exist.
-
-- [ ] **Step 3: Add repository methods**
-
-In `src/resource_discovery/postgres_store.py`, add:
-
-- `search_audit_events(tenant_id, event_type=None, task_id=None, limit=100)`
-- `load_retention_policy(tenant_id)`
-- `cleanup_expired_rows(tenant_id, now)`
-
-All methods must scope by `tenant_id`.
-
-- [ ] **Step 4: Add ops commands**
-
-In `src/resource_discovery/ops_cli.py`, add `search-audit` and `cleanup-retention --tenant-id`. The audit command prints compact JSON lines and never prints authentication headers, signatures, or secret refs.
-
-- [ ] **Step 5: Extend metrics**
-
-In `src/resource_discovery/metrics.py`, add counters for `tasks_created_total`, `tasks_completed_total`, `provider_errors_total`, `dead_letters_total`, and `quota_rejections_total`. Update existing instrumentation in `http_app.py` and `worker.py` to increment them with bounded label values.
-
-- [ ] **Step 6: Run focused tests**
-
-Run: `.\.venv\Scripts\python.exe -m pytest tests/test_production_audit_retention.py tests/test_observability.py tests/test_ops_cli_production_ops.py -q`
-
-Expected: all focused tests pass.
-
-- [ ] **Step 7: Commit**
-
-```bash
-git add src/resource_discovery/postgres_store.py src/resource_discovery/metrics.py src/resource_discovery/ops_cli.py src/resource_discovery/http_app.py src/resource_discovery/worker.py tests/test_production_audit_retention.py tests/test_observability.py tests/test_ops_cli_production_ops.py
-git commit -m "feat: add production audit retention operations"
-```
-
-## Task 6: Controlled Live FOFA Regression
-
-**Files:**
-- Modify: `src/resource_discovery/live_validation.py`
-- Modify: `src/resource_discovery/ops_cli.py`
-- Create: `tests/test_live_fofa_regression.py`
-- Modify: `docs/resource-discovery/production-readiness-checklist.md`
-
-- [ ] **Step 1: Write env-gated tests**
-
-Create tests that assert live regression refuses to run unless all of these are present:
-
-- `RESOURCE_DISCOVERY_LIVE_FOFA=1`
-- `FOFA_EMAIL`
-- `FOFA_KEY`
-- `RESOURCE_DISCOVERY_LIVE_AUTHORIZED_DOMAIN`
-
-Also assert logs and returned summaries do not include `FOFA_KEY`.
-
-- [ ] **Step 2: Run tests and verify failure**
-
-Run: `.\.venv\Scripts\python.exe -m pytest tests/test_live_fofa_regression.py -q`
-
-Expected: fails until the guard is implemented.
-
-- [ ] **Step 3: Implement guarded runner**
-
-In `src/resource_discovery/live_validation.py`, add `run_live_fofa_regression(authorized_domain, result_limit=10)`. It must build a single passive FOFA query for the authorized domain, use existing FOFA client error mapping, redact credentials from all returned structures, and return only counts plus normalized sample IDs.
-
-- [ ] **Step 4: Add ops command**
-
-In `src/resource_discovery/ops_cli.py`, add `live-fofa-regression`. The command exits nonzero with a clear message if the env gate is missing. It must not accept FOFA credentials as CLI arguments.
-
-- [ ] **Step 5: Run guarded local tests**
-
-Run: `.\.venv\Scripts\python.exe -m pytest tests/test_live_fofa_regression.py tests/test_live_validation.py -q`
-
-Expected: all focused tests pass without real FOFA credentials.
-
-- [ ] **Step 6: Run optional live regression only in an authorized environment**
-
-Run from WSL or Windows with explicit authorization:
-
-```bash
-RESOURCE_DISCOVERY_LIVE_FOFA=1 FOFA_EMAIL="$FOFA_EMAIL" FOFA_KEY="$FOFA_KEY" RESOURCE_DISCOVERY_LIVE_AUTHORIZED_DOMAIN="example.com" python -m resource_discovery.ops_cli live-fofa-regression
-```
-
-Expected: returns a redacted JSON summary. If credentials or authorization are unavailable, record `not run` in the checklist instead of fabricating a result.
-
-- [ ] **Step 7: Commit**
-
-```bash
-git add src/resource_discovery/live_validation.py src/resource_discovery/ops_cli.py tests/test_live_fofa_regression.py docs/resource-discovery/production-readiness-checklist.md
-git commit -m "test: add guarded live fofa regression"
-```
-
-## Final Verification
-
-- [ ] Run full Windows suite: `.\.venv\Scripts\python.exe -m pytest -q`
-- [ ] Run coverage gate: `.\.venv\Scripts\python.exe -m coverage run -m pytest -q && .\.venv\Scripts\python.exe -m coverage report`
-- [ ] Run WSL PostgreSQL/Redis suite: `RESOURCE_DISCOVERY_DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5432/resource_discovery RESOURCE_DISCOVERY_TEST_DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5432/resource_discovery RESOURCE_DISCOVERY_TEST_REDIS_URL=redis://localhost:6379/0 python -m pytest -q`
-- [ ] Run whitespace check: `git diff --check`
-- [ ] Confirm GitHub Actions `CI` and `production-like-gateway` are green after push.
+- [x] Windows 全量测试：`.\.venv\Scripts\python.exe -m pytest -q`，结果 `315 passed, 4 skipped in 4.58s`
+- [x] 覆盖率门禁：`.\.venv\Scripts\python.exe -m coverage run -m pytest -q; .\.venv\Scripts\python.exe -m coverage report`，结果 `315 passed, 4 skipped`，总覆盖率 `98.32%`
+- [x] WSL PostgreSQL/Redis：`RESOURCE_DISCOVERY_TEST_DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5432/resource_discovery RESOURCE_DISCOVERY_TEST_REDIS_URL=redis://localhost:6379/0 python -m pytest -q`，结果 `319 passed in 12.02s`
+- [x] whitespace 检查：`git diff --check`
+- [ ] 推送后确认 GitHub Actions `CI` 和 `production-like-gateway` 为绿色。

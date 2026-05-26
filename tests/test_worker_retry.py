@@ -62,7 +62,10 @@ class LegacyStatusQueue:
 
 
 class FailingSourceClient(SourceClient):
+    called = False
+
     def fetch(self, plan):
+        self.called = True
         raise RuntimeError("provider_timeout")
 
 
@@ -223,3 +226,18 @@ def test_worker_recoverable_result_marks_failed_after_status_queue_budget_exhaus
 
 def test_first_error_message_defaults_when_error_list_is_empty():
     assert _first_error_message({"task": {"errors": []}}) == "recoverable task failure"
+
+
+def test_worker_skips_cancelled_task_before_provider_execution(tmp_path):
+    source_client = FailingSourceClient()
+    task_repo, result_repo, item = _create_task(tmp_path, source_client)
+    payload = task_repo.load(item.tenant_id, item.task_id)
+    payload["task"]["status"] = "cancelled"
+    task_repo.update(payload)
+    queue = QueueSpy(item)
+
+    result = TaskWorker(task_repo, result_repo, queue, source_client).run_once()
+
+    assert result == {"processed": True, "task_id": item.task_id, "status": "cancelled"}
+    assert queue.done == [item]
+    assert source_client.called is False
